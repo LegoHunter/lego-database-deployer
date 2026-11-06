@@ -60,6 +60,24 @@ class BaselineChangelogTest {
     }
 
     @Test
+    void everyDefaultIsALiteralMySqlAccepts() throws Exception {
+        // Workbench writes a string default exactly as typed, so DEFAULT AVAILABLE (no quotes) reaches
+        // MySQL as an identifier and the CREATE TABLE fails (found building lego_dev, HOMELAB-46).
+        String sql = ((RawSQLChange) baselineChanges().get(0)).getSql();
+        Matcher matcher = Pattern.compile("\\bDEFAULT\\s+([^\\s,)]+)").matcher(sql);
+        List<String> bad = new java.util.ArrayList<>();
+        while (matcher.find()) {
+            String value = matcher.group(1);
+            boolean literal = value.startsWith("'") || value.startsWith("(") || value.matches("-?[0-9.]+")
+                    || value.matches("(?i)NULL|TRUE|FALSE|CURRENT_TIMESTAMP(\\(\\d*\\))?|CHARACTER");
+            if (!literal) {
+                bad.add(value);
+            }
+        }
+        assertThat(bad).as("unquoted DEFAULT values").isEmpty();
+    }
+
+    @Test
     void createsTheTablesTheModelHas() throws Exception {
         String sql = ((RawSQLChange) baselineChanges().get(0)).getSql();
         // getSql() returns the SQL with ${environment-schema} already replaced (lego_test here).
