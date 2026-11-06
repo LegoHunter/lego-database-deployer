@@ -1,0 +1,35 @@
+databaseChangeLog:
+  - changeSet:
+      id: 1.2.0-item-inventory-seed-source
+      author: claude
+      comment: >-
+        Record which source item a lower-environment seeded item came from (HOMELAB-40), so seeding
+        re-runs never duplicate an item and teardown can only touch seeded items.
+      preConditions:
+        - onFail: HALT
+        - tableExists:
+            tableName: item_inventory
+        - not:
+            - tableExists:
+                tableName: item_inventory_seed_source
+      changes:
+        - sql:
+            dbms: mysql
+            sql: |
+              CREATE TABLE `${environment-schema}`.`item_inventory_seed_source` (
+                `item_inventory_id` INT NOT NULL COMMENT 'The seeded item. One source per item.',
+                `source_system` VARCHAR(32) NOT NULL COMMENT 'Where the item data was copied from, e.g. LEGO_PROD_LEGACY.',
+                `source_key` VARCHAR(64) NOT NULL COMMENT 'The item key in the source system, e.g. the legacy bricklink_inventory.bl_inventory_id.',
+                `seed_run_id` CHAR(36) NOT NULL COMMENT 'UUID of the seeding run that created the item.',
+                `seeded_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'When the item was seeded (UTC).',
+                PRIMARY KEY (`item_inventory_id`),
+                UNIQUE KEY `uq_item_inventory_seed_source_source` (`source_system`, `source_key`),
+                KEY `idx_item_inventory_seed_source_run` (`seed_run_id`),
+                CONSTRAINT `fk_item_inventory_seed_source_item_inventory`
+                  FOREIGN KEY (`item_inventory_id`) REFERENCES `${environment-schema}`.`item_inventory` (`item_inventory_id`)
+                  ON DELETE RESTRICT ON UPDATE RESTRICT
+              ) ENGINE=InnoDB COMMENT='Provenance of items created by lower-environment seeding. Never populated in PROD.';
+      rollback:
+        - sql:
+            dbms: mysql
+            sql: DROP TABLE `${environment-schema}`.`item_inventory_seed_source`;
