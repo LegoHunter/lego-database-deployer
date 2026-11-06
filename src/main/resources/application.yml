@@ -13,3 +13,7 @@ spring:
 logging:
   level:
     root: INFO
+
+# UPDATE (default) | CHANGELOG_SYNC | STATUS -- see DeployerMode and the README.
+deployer:
+  mode: UPDATE
