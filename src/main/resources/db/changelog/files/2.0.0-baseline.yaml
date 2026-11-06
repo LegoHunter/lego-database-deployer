@@ -446,10 +446,10 @@ databaseChangeLog:
               -- -----------------------------------------------------
               CREATE TABLE IF NOT EXISTS `${environment-schema}`.`shipment` (
                 `shipment_id` INT NOT NULL AUTO_INCREMENT,
+                `external_shipment_id` VARCHAR(100) NULL,
                 `shipment_date` DATE NOT NULL,
                 `shipment_tracking_number` VARCHAR(45) COLLATE 'utf8mb3_unicode_ci' NULL DEFAULT NULL,
                 `carrier_code` VARCHAR(10) NOT NULL,
-                `external_shipment_id` VARCHAR(100) NULL,
                 `fulfillment_platform_code` VARCHAR(30) NULL,
                 `service_code` VARCHAR(100) NULL,
                 PRIMARY KEY (`shipment_id`),
@@ -778,7 +778,7 @@ databaseChangeLog:
                 `title` VARCHAR(250) COLLATE 'utf8mb3_unicode_ci' NULL DEFAULT NULL COMMENT 'Listing title intended for marketplace presentation.',
                 `description` VARCHAR(1024) COLLATE 'utf8mb3_unicode_ci' NULL DEFAULT NULL COMMENT 'Listing description intended for buyer-facing marketplace presentation.',
                 `private_notes` VARCHAR(1024) COLLATE 'utf8mb3_unicode_ci' NULL DEFAULT NULL COMMENT 'Internal notes about the listing that should not be shown to buyers.',
-                `unit_price` DECIMAL(9,2) NULL COMMENT 'Current listing unit price in the listing currency.',
+                `unit_price` DECIMAL(9,2) NULL COMMENT 'Current listing unit price in the listing currency. Null while Pricing Plane calculates an initial price for a local draft.',
                 `currency_code` CHAR(3) COLLATE 'utf8mb3_unicode_ci' NOT NULL COMMENT 'ISO currency code for the listing price.',
                 `fixed_price` TINYINT(1) NULL DEFAULT 1 COMMENT 'Indicates whether the listing is fixed-price rather than auction or negotiated pricing.',
                 `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'Timestamp when the local listing record was created.',
