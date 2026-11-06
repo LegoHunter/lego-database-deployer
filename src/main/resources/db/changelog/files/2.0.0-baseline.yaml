@@ -1,0 +1,1488 @@
+databaseChangeLog:
+  - changeSet:
+      id: 2.0.0-baseline
+      author: tvattima
+      comment: >-
+        Starting schema for every LCMS environment, forward-engineered from lego-data-model.mwb on
+        2026-11-05 (52 tables). Replaces changesets 1.0.0-1.2.0 (HOMELAB-46). It has no DROP
+        statements and halts on a schema that already has item_inventory: bring an existing schema
+        under Liquibase with deployer.mode=CHANGELOG_SYNC, never UPDATE.
+      preConditions:
+        - onFail: HALT
+        - onFailMessage: "item_inventory already exists: this schema is already built. Use deployer.mode=CHANGELOG_SYNC, never UPDATE."
+        - not:
+            - tableExists:
+                tableName: item_inventory
+      changes:
+        - sql:
+            dbms: mysql
+            splitStatements: true
+            stripComments: false
+            sql: |
+              SET @OLD_UNIQUE_CHECKS=@@UNIQUE_CHECKS, UNIQUE_CHECKS=0;
+              SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0;
+              SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='NO_AUTO_VALUE_ON_ZERO,ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION';
+
+              -- -----------------------------------------------------
+              -- Schema ${environment-schema}
+              -- -----------------------------------------------------
+
+              -- -----------------------------------------------------
+              -- Schema ${environment-schema}
+              -- -----------------------------------------------------
+              CREATE SCHEMA IF NOT EXISTS `${environment-schema}` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci ;
+              USE `${environment-schema}` ;
+
+              -- -----------------------------------------------------
+              -- Table `${environment-schema}`.`bricklink_inventory`
+              -- -----------------------------------------------------
+              CREATE TABLE IF NOT EXISTS `${environment-schema}`.`bricklink_inventory` (
+                `bl_inventory_id` INT NOT NULL AUTO_INCREMENT,
+                `uuid` CHAR(32) COLLATE 'utf8mb3_unicode_ci' NOT NULL,
+                `bl_item_number` VARCHAR(10) COLLATE 'utf8mb3_unicode_ci' NOT NULL,
+                `inventory_id` INT NULL DEFAULT NULL,
+                `item_type` VARCHAR(20) COLLATE 'utf8mb3_unicode_ci' NOT NULL,
+                `color_id` SMALLINT NULL DEFAULT NULL,
+                `color_name` VARCHAR(50) COLLATE 'utf8mb3_unicode_ci' NULL DEFAULT NULL,
+                `quantity` SMALLINT NOT NULL,
+                `new_or_used` VARCHAR(1) COLLATE 'utf8mb3_unicode_ci' NOT NULL,
+                `completeness` VARCHAR(1) COLLATE 'utf8mb3_unicode_ci' NOT NULL,
+                `unit_price` DECIMAL(7,2) NOT NULL,
+                `bind_id` INT NULL DEFAULT NULL,
+                `description` VARCHAR(1024) COLLATE 'utf8mb3_unicode_ci' NULL DEFAULT NULL,
+                `remarks` VARCHAR(1024) COLLATE 'utf8mb3_unicode_ci' NULL DEFAULT NULL,
+                `bulk` SMALLINT NULL DEFAULT NULL,
+                `is_retain` TINYINT(1) NOT NULL,
+                `is_stock_room` TINYINT(1) NOT NULL,
+                `stock_room_id` VARCHAR(1) COLLATE 'utf8mb3_unicode_ci' NOT NULL,
+                `date_created` DATETIME NULL DEFAULT NULL,
+                `my_cost` DECIMAL(7,2) NULL DEFAULT NULL,
+                `sale_rate` TINYINT NULL DEFAULT NULL,
+                `tier_quantity1` SMALLINT NULL DEFAULT NULL,
+                `tier_quantity2` SMALLINT NULL DEFAULT NULL,
+                `tier_quantity3` SMALLINT NULL DEFAULT NULL,
+                `tier_price1` DECIMAL(7,2) NULL DEFAULT NULL,
+                `tier_price2` DECIMAL(7,2) NULL DEFAULT NULL,
+                `tier_price3` DECIMAL(7,2) NULL DEFAULT NULL,
+                `my_weight` DECIMAL(5,2) NULL DEFAULT NULL,
+                `sealed` TINYINT(1) NOT NULL,
+                `order_id` VARCHAR(11) COLLATE 'utf8mb3_unicode_ci' NULL DEFAULT NULL,
+                `fixed_price` TINYINT(1) NULL DEFAULT NULL,
+                `for_sale` TINYINT(1) NULL DEFAULT NULL,
+                `built_once` TINYINT(1) NULL DEFAULT NULL,
+                `box_condition_id` INT NULL DEFAULT NULL,
+                `instructions_condition_id` INT NULL DEFAULT NULL,
+                `internal_comments` VARCHAR(1024) COLLATE 'utf8mb3_unicode_ci' NULL DEFAULT NULL,
+                `update_timestamp` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                `last_synchronized_timestamp` DATETIME NULL DEFAULT NULL,
+                `extended_description` VARCHAR(1024) COLLATE 'utf8mb3_unicode_ci' NULL DEFAULT NULL,
+                `extra_description` VARCHAR(1024) COLLATE 'utf8mb3_unicode_ci' NULL DEFAULT NULL,
+                PRIMARY KEY (`bl_inventory_id`),
+                UNIQUE INDEX `uuid` (`uuid` ASC) VISIBLE,
+                INDEX `bl_item_index_1` (`bl_item_number` ASC) VISIBLE,
+                INDEX `box_condition_id_fk_1` (`box_condition_id` ASC) VISIBLE,
+                INDEX `instructions_condition_id_fk_1` (`instructions_condition_id` ASC) VISIBLE)
+              ENGINE = InnoDB
+              AUTO_INCREMENT = 936;
+
+
+              -- -----------------------------------------------------
+              -- Table `${environment-schema}`.`external_service_type`
+              -- -----------------------------------------------------
+              CREATE TABLE IF NOT EXISTS `${environment-schema}`.`external_service_type` (
+                `external_service_type_id` INT NOT NULL COMMENT 'Stable identifier for the external service type.',
+                `external_service_type_name` VARCHAR(20) COLLATE 'utf8mb3_unicode_ci' NOT NULL COMMENT 'Unique service type code or name, such as MARKETPLACE, AUCTION, CATALOG, or IMAGE_HOSTING.',
+                `external_service_type_description` VARCHAR(100) COLLATE 'utf8mb3_unicode_ci' NULL DEFAULT NULL COMMENT 'Human-readable description of the service type.',
+                PRIMARY KEY (`external_service_type_id`))
+              ENGINE = InnoDB
+              COMMENT = 'Lookup table classifying external services by broad integration role.';
+
+
+              -- -----------------------------------------------------
+              -- Table `${environment-schema}`.`external_service`
+              -- -----------------------------------------------------
+              CREATE TABLE IF NOT EXISTS `${environment-schema}`.`external_service` (
+                `external_service_id` INT NOT NULL COMMENT 'Stable identifier for the external service.',
+                `service_code` VARCHAR(50) COLLATE 'utf8mb3_unicode_ci' NOT NULL COMMENT 'Unique machine-readable code for the service, such as BRICKLINK, EBAY, or FLICKR.',
+                `display_name` VARCHAR(100) COLLATE 'utf8mb3_unicode_ci' NOT NULL COMMENT 'Human-readable service name for UI, reports, and logs.',
+                `service_url` VARCHAR(500) COLLATE 'utf8mb3_unicode_ci' NULL DEFAULT NULL COMMENT 'Base public URL for the external service.',
+                `external_service_type_id` INT NOT NULL COMMENT 'Reference to the broad type of external service.',
+                PRIMARY KEY (`external_service_id`),
+                UNIQUE INDEX `service_code_UNIQUE` (`service_code` ASC) VISIBLE,
+                INDEX `fk_external_service_external_service_type1_idx` (`external_service_type_id` ASC) VISIBLE,
+                CONSTRAINT `fk_external_service_external_service_type1`
+                  FOREIGN KEY (`external_service_type_id`)
+                  REFERENCES `${environment-schema}`.`external_service_type` (`external_service_type_id`)
+                  ON DELETE NO ACTION
+                  ON UPDATE NO ACTION)
+              ENGINE = InnoDB
+              COMMENT = 'Registry of external systems that provide catalog data, marketplace listings, image hosting, or related integrations.';
+
+
+              -- -----------------------------------------------------
+              -- Table `${environment-schema}`.`external_catalog_item`
+              -- -----------------------------------------------------
+              CREATE TABLE IF NOT EXISTS `${environment-schema}`.`external_catalog_item` (
+                `external_catalog_item_id` INT NOT NULL AUTO_INCREMENT COMMENT 'Surrogate primary key for the external catalog item.',
+                `external_service_id` INT NOT NULL COMMENT 'External service that owns this catalog identity.',
+                `external_item_key` VARCHAR(100) COLLATE 'utf8mb3_unicode_ci' NOT NULL COMMENT 'Service-native item key or number, such as a BrickLink item number.',
+                `external_unique_key` VARCHAR(100) COLLATE 'utf8mb3_unicode_ci' NULL DEFAULT NULL COMMENT 'Optional service-native unique identifier when different from the item key or number.',
+                `item_name` VARCHAR(250) COLLATE 'utf8mb3_unicode_ci' NOT NULL COMMENT 'Service-provided catalog item name.',
+                `item_type_code` VARCHAR(30) COLLATE 'utf8mb3_unicode_ci' NOT NULL COMMENT 'Service-specific item type code, such as SET, PART, MINIFIG, or similar.',
+                `item_url` VARCHAR(300) COLLATE 'utf8mb3_unicode_ci' NULL DEFAULT NULL COMMENT 'Public URL for the catalog item on the external service, when available.',
+                `year_released` INT NULL COMMENT 'Release year reported by the external catalog service, when available.',
+                PRIMARY KEY (`external_catalog_item_id`),
+                INDEX `fk_external_catalog_item_external_service1_idx` (`external_service_id` ASC) VISIBLE,
+                UNIQUE INDEX `uq_external_catalog_item_service_key` (`external_service_id` ASC, `external_item_key` ASC) VISIBLE,
+                CONSTRAINT `fk_external_catalog_item_external_service1`
+                  FOREIGN KEY (`external_service_id`)
+                  REFERENCES `${environment-schema}`.`external_service` (`external_service_id`)
+                  ON DELETE NO ACTION
+                  ON UPDATE NO ACTION)
+              ENGINE = InnoDB
+              COMMENT = 'Service-specific catalog or product identity for a LEGO item; this describes what an external system says the item is, not a sale listing.';
+
+
+              -- -----------------------------------------------------
+              -- Table `${environment-schema}`.`bricklink_sale_item`
+              -- -----------------------------------------------------
+              CREATE TABLE IF NOT EXISTS `${environment-schema}`.`bricklink_sale_item` (
+                `bl_sale_item_id` INT NOT NULL AUTO_INCREMENT,
+                `inventory_id` INT NOT NULL,
+                `description` VARCHAR(2048) COLLATE 'utf8mb3_unicode_ci' NULL DEFAULT NULL,
+                `new_or_used` VARCHAR(1) COLLATE 'utf8mb3_unicode_ci' NOT NULL,
+                `completeness` VARCHAR(1) COLLATE 'utf8mb3_unicode_ci' NOT NULL,
+                `quantity` SMALLINT NOT NULL,
+                `has_extended_description` TINYINT(1) NOT NULL,
+                `unit_price` DECIMAL(7,2) NOT NULL,
+                `country_code` VARCHAR(2) COLLATE 'utf8mb3_unicode_ci' NOT NULL DEFAULT 'ZZ',
+                `date_created` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                `status` VARCHAR(1) COLLATE 'utf8mb3_unicode_ci' NOT NULL DEFAULT 'C',
+                `external_catalog_item_id` INT NOT NULL,
+                PRIMARY KEY (`bl_sale_item_id`),
+                UNIQUE INDEX `inventory_id` (`inventory_id` ASC) VISIBLE,
+                INDEX `fk_bricklink_sale_item_external_catalog_item1_idx` (`external_catalog_item_id` ASC) VISIBLE,
+                CONSTRAINT `fk_bricklink_sale_item_external_catalog_item1`
+                  FOREIGN KEY (`external_catalog_item_id`)
+                  REFERENCES `${environment-schema}`.`external_catalog_item` (`external_catalog_item_id`)
+                  ON DELETE NO ACTION
+                  ON UPDATE NO ACTION)
+              ENGINE = InnoDB
+              AUTO_INCREMENT = 58644;
+
+
+              -- -----------------------------------------------------
+              -- Table `${environment-schema}`.`carrier`
+              -- -----------------------------------------------------
+              CREATE TABLE IF NOT EXISTS `${environment-schema}`.`carrier` (
+                `carrier_code` VARCHAR(10) NOT NULL,
+                `carrier_name` VARCHAR(100) COLLATE 'utf8mb3_unicode_ci' NOT NULL,
+                `tracking_url_pattern` VARCHAR(300) COLLATE 'utf8mb3_unicode_ci' NULL DEFAULT NULL,
+                PRIMARY KEY (`carrier_code`))
+              ENGINE = InnoDB;
+
+
+              -- -----------------------------------------------------
+              -- Table `${environment-schema}`.`external_category`
+              -- -----------------------------------------------------
+              CREATE TABLE IF NOT EXISTS `${environment-schema}`.`external_category` (
+                `external_category_id` INT NOT NULL AUTO_INCREMENT COMMENT 'Surrogate primary key for the external category.',
+                `external_service_id` INT NOT NULL COMMENT 'External service that owns this category taxonomy.',
+                `external_category_key` VARCHAR(100) COLLATE 'utf8mb3_unicode_ci' NOT NULL COMMENT 'Service-native category identifier or key.',
+                `category_name` VARCHAR(50) COLLATE 'utf8mb3_unicode_ci' NOT NULL COMMENT 'Human-readable category name from the external service.',
+                `parent_external_category_id` INT NULL DEFAULT NULL COMMENT 'Optional parent category within the same external taxonomy.',
+                PRIMARY KEY (`external_category_id`),
+                INDEX `fk_external_category_external_service1_idx` (`external_service_id` ASC) VISIBLE,
+                UNIQUE INDEX `uq_external_category_service_key` (`external_service_id` ASC, `external_category_key` ASC) VISIBLE,
+                INDEX `fk_external_category_parent1_idx` (`parent_external_category_id` ASC) VISIBLE,
+                CONSTRAINT `fk_external_category_external_service1`
+                  FOREIGN KEY (`external_service_id`)
+                  REFERENCES `${environment-schema}`.`external_service` (`external_service_id`)
+                  ON DELETE NO ACTION
+                  ON UPDATE NO ACTION,
+                CONSTRAINT `fk_external_category_parent1`
+                  FOREIGN KEY (`parent_external_category_id`)
+                  REFERENCES `${environment-schema}`.`external_category` (`external_category_id`)
+                  ON DELETE NO ACTION
+                  ON UPDATE NO ACTION)
+              ENGINE = InnoDB
+              COMMENT = 'Service-specific category or taxonomy node used to classify external catalog items.';
+
+
+              -- -----------------------------------------------------
+              -- Table `${environment-schema}`.`condition`
+              -- -----------------------------------------------------
+              CREATE TABLE IF NOT EXISTS `${environment-schema}`.`condition` (
+                `condition_id` INT NOT NULL,
+                `condition_code` VARCHAR(5) COLLATE 'utf8mb3_unicode_ci' NOT NULL,
+                `condition_description` VARCHAR(50) COLLATE 'utf8mb3_unicode_ci' NOT NULL,
+                `condition_text` TINYTEXT COLLATE 'utf8mb3_unicode_ci' NULL DEFAULT NULL,
+                PRIMARY KEY (`condition_id`))
+              ENGINE = InnoDB;
+
+
+              -- -----------------------------------------------------
+              -- Table `${environment-schema}`.`cost_type`
+              -- -----------------------------------------------------
+              CREATE TABLE IF NOT EXISTS `${environment-schema}`.`cost_type` (
+                `cost_type_code` VARCHAR(10) NOT NULL,
+                `cost_type_name` VARCHAR(45) COLLATE 'utf8mb3_unicode_ci' NOT NULL,
+                `cost_type_description` VARCHAR(300) COLLATE 'utf8mb3_unicode_ci' NULL DEFAULT NULL,
+                PRIMARY KEY (`cost_type_code`))
+              ENGINE = InnoDB;
+
+
+              -- -----------------------------------------------------
+              -- Table `${environment-schema}`.`inventory_index`
+              -- -----------------------------------------------------
+              CREATE TABLE IF NOT EXISTS `${environment-schema}`.`inventory_index` (
+                `box_id` INT NOT NULL DEFAULT '0',
+                `box_index` INT NOT NULL DEFAULT '0',
+                `item_number` VARCHAR(15) COLLATE 'utf8mb3_unicode_ci' NOT NULL,
+                `box_name` VARCHAR(20) COLLATE 'utf8mb3_unicode_ci' NULL DEFAULT NULL,
+                `box_number` VARCHAR(10) COLLATE 'utf8mb3_unicode_ci' NOT NULL,
+                `sealed` VARCHAR(5) COLLATE 'utf8mb3_unicode_ci' NULL DEFAULT NULL,
+                `quantity` INT NULL DEFAULT NULL,
+                `description` TEXT COLLATE 'utf8mb3_unicode_ci' NULL DEFAULT NULL,
+                `active` TINYINT(1) NULL DEFAULT '1',
+                `moved_to_box_id` INT NULL DEFAULT NULL,
+                PRIMARY KEY (`box_id`, `box_index`),
+                INDEX `inventory_index__index_1` (`box_id` ASC, `box_index` ASC) VISIBLE)
+              ENGINE = InnoDB;
+
+
+              -- -----------------------------------------------------
+              -- Table `${environment-schema}`.`item_inventory_state`
+              -- -----------------------------------------------------
+              CREATE TABLE IF NOT EXISTS `${environment-schema}`.`item_inventory_state` (
+                `inventory_state_code` VARCHAR(30) COLLATE 'utf8mb3_unicode_ci' NOT NULL COMMENT 'Stable inventory lifecycle state code for an owned item, such as AVAILABLE, RESERVED_FOR_ORDER, SOLD, REMOVED, or LOST.',
+                `inventory_state_name` VARCHAR(100) COLLATE 'utf8mb3_unicode_ci' NOT NULL COMMENT 'Human-readable inventory lifecycle state name.',
+                `inventory_state_description` VARCHAR(500) COLLATE 'utf8mb3_unicode_ci' NULL DEFAULT NULL COMMENT 'Description of when this inventory state should be applied.',
+                `active` TINYINT NOT NULL DEFAULT 1 COMMENT 'Indicates whether this inventory state is active for new inventory workflows.',
+                `sort_order` INT NULL DEFAULT NULL COMMENT 'Display ordering for inventory states in tools and reports.',
+                PRIMARY KEY (`inventory_state_code`))
+              ENGINE = InnoDB
+              COMMENT = 'Lookup table defining lifecycle states for owned inventory items.';
+
+
+              -- -----------------------------------------------------
+              -- Table `${environment-schema}`.`item_inventory_sale_intent`
+              -- -----------------------------------------------------
+              CREATE TABLE IF NOT EXISTS `${environment-schema}`.`item_inventory_sale_intent` (
+                `sale_intent_code` VARCHAR(30) COLLATE 'utf8mb3_unicode_ci' NOT NULL COMMENT 'Stable sale intent code for an owned item, such as SELLABLE, KEEP, or UNDECIDED.',
+                `sale_intent_name` VARCHAR(100) COLLATE 'utf8mb3_unicode_ci' NOT NULL COMMENT 'Human-readable sale intent name.',
+                `sale_intent_description` VARCHAR(500) COLLATE 'utf8mb3_unicode_ci' NULL DEFAULT NULL COMMENT 'Description of how this sale intent should affect marketplace listing automation.',
+                `active` TINYINT NOT NULL DEFAULT 1 COMMENT 'Indicates whether this sale intent is active for new inventory workflows.',
+                `sort_order` INT NULL DEFAULT NULL COMMENT 'Display ordering for sale intent options in tools and reports.',
+                PRIMARY KEY (`sale_intent_code`))
+              ENGINE = InnoDB
+              COMMENT = 'Lookup table defining whether owned inventory may be listed or sold.';
+
+
+              -- -----------------------------------------------------
+              -- Table `${environment-schema}`.`item_inventory`
+              -- -----------------------------------------------------
+              CREATE TABLE IF NOT EXISTS `${environment-schema}`.`item_inventory` (
+                `item_inventory_id` INT NOT NULL AUTO_INCREMENT COMMENT 'Surrogate primary key for the owned inventory record.',
+                `uuid` CHAR(36) NOT NULL COMMENT 'Stable globally unique identifier for this inventory item across tools, imports, and image workflows.',
+                `box_number` INT NULL DEFAULT NULL COMMENT 'Physical storage box number where the item is or was stored.',
+                `purchase_price` DECIMAL(9,2) NULL DEFAULT NULL COMMENT 'Original acquisition price paid for this inventory item, when known.',
+                `description` TEXT COLLATE 'utf8mb3_unicode_ci' NULL DEFAULT NULL COMMENT 'Internal free-form description of the owned item and notable attributes.',
+                `active` TINYINT(1) NULL COMMENT 'Indicates whether this inventory record is currently active in the collection.',
+                `for_sale` TINYINT(1) NULL COMMENT 'Indicates whether this inventory item is intended to be available for sale.',
+                `new_or_used` VARCHAR(1) NULL COMMENT 'Item condition class such as new or used.',
+                `completeness` VARCHAR(1) COLLATE 'utf8mb3_unicode_ci' NULL COMMENT 'Completeness state for the item, such as complete or incomplete.',
+                `item_condition_id` INT NULL DEFAULT NULL COMMENT 'Reference to the condition of the LEGO item itself.',
+                `box_condition_id` INT NULL DEFAULT NULL COMMENT 'Reference to the condition of the original box, if applicable.',
+                `instructions_condition_id` INT NULL DEFAULT NULL COMMENT 'Reference to the condition of included instructions, if applicable.',
+                `sealed` TINYINT(1) NULL COMMENT 'Indicates whether the item is factory sealed.',
+                `built_once` TINYINT(1) NULL DEFAULT NULL COMMENT 'Indicates whether the item has been built once, useful for sale descriptions and valuation.',
+                `inventory_state_code` VARCHAR(30) COLLATE 'utf8mb3_unicode_ci' NOT NULL DEFAULT AVAILABLE COMMENT 'Current lifecycle state of the owned inventory item.',
+                `inventory_state_changed_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'Timestamp when inventory_state_code was last changed by application logic.',
+                `sale_intent_code` VARCHAR(30) COLLATE 'utf8mb3_unicode_ci' NOT NULL DEFAULT UNDECIDED COMMENT 'Current sale intent for the owned inventory item. Only SELLABLE inventory should be eligible for automated listing.',
+                `sale_intent_updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'Timestamp when sale_intent_code was last changed by application logic.',
+                `sale_intent_note` VARCHAR(500) COLLATE 'utf8mb3_unicode_ci' NULL DEFAULT NULL COMMENT 'Optional internal explanation for the current sale intent, such as a personal collection hold.',
+                PRIMARY KEY (`item_inventory_id`),
+                INDEX `fk_item_inventory_condition1_idx` (`item_condition_id` ASC) VISIBLE,
+                INDEX `fk_item_inventory_condition2_idx` (`instructions_condition_id` ASC) VISIBLE,
+                UNIQUE INDEX `uuid_UNIQUE` (`uuid` ASC) VISIBLE,
+                INDEX `fk_item_inventory_state_idx` (`inventory_state_code` ASC) VISIBLE,
+                INDEX `fk_item_inventory_sale_intent_idx` (`sale_intent_code` ASC) VISIBLE,
+                CONSTRAINT `fk_item_inventory_condition1`
+                  FOREIGN KEY (`item_condition_id`)
+                  REFERENCES `${environment-schema}`.`condition` (`condition_id`)
+                  ON DELETE NO ACTION
+                  ON UPDATE NO ACTION,
+                CONSTRAINT `fk_item_inventory_condition2`
+                  FOREIGN KEY (`instructions_condition_id`)
+                  REFERENCES `${environment-schema}`.`condition` (`condition_id`)
+                  ON DELETE NO ACTION
+                  ON UPDATE NO ACTION,
+                CONSTRAINT `fk_item_inventory_state`
+                  FOREIGN KEY (`inventory_state_code`)
+                  REFERENCES `${environment-schema}`.`item_inventory_state` (`inventory_state_code`)
+                  ON DELETE NO ACTION
+                  ON UPDATE NO ACTION,
+                CONSTRAINT `fk_item_inventory_sale_intent`
+                  FOREIGN KEY (`sale_intent_code`)
+                  REFERENCES `${environment-schema}`.`item_inventory_sale_intent` (`sale_intent_code`)
+                  ON DELETE NO ACTION
+                  ON UPDATE NO ACTION)
+              ENGINE = InnoDB
+              COMMENT = 'Canonical record for a physical LEGO item owned now or previously owned, including sale eligibility and condition details.';
+
+
+              -- -----------------------------------------------------
+              -- Table `${environment-schema}`.`party`
+              -- -----------------------------------------------------
+              CREATE TABLE IF NOT EXISTS `${environment-schema}`.`party` (
+                `party_id` INT NOT NULL AUTO_INCREMENT,
+                `party_first_name` VARCHAR(50) COLLATE 'utf8mb3_unicode_ci' NULL DEFAULT NULL,
+                `party_middle_initial` CHAR(1) COLLATE 'utf8mb3_unicode_ci' NULL DEFAULT NULL,
+                `party_last_name` VARCHAR(50) COLLATE 'utf8mb3_unicode_ci' NULL DEFAULT NULL,
+                `party_address1` VARCHAR(50) COLLATE 'utf8mb3_unicode_ci' NULL DEFAULT NULL,
+                `party_address2` VARCHAR(50) COLLATE 'utf8mb3_unicode_ci' NULL DEFAULT NULL,
+                `party_city` VARCHAR(50) COLLATE 'utf8mb3_unicode_ci' NULL DEFAULT NULL,
+                `party_state` VARCHAR(50) COLLATE 'utf8mb3_unicode_ci' NULL DEFAULT NULL,
+                `party_postal_code` VARCHAR(50) COLLATE 'utf8mb3_unicode_ci' NULL DEFAULT NULL,
+                `party_country_code` VARCHAR(50) COLLATE 'utf8mb3_unicode_ci' NULL DEFAULT NULL,
+                `party_country` VARCHAR(50) COLLATE 'utf8mb3_unicode_ci' NULL DEFAULT NULL,
+                `party_phone` VARCHAR(50) COLLATE 'utf8mb3_unicode_ci' NULL DEFAULT NULL,
+                `party_email` VARCHAR(50) COLLATE 'utf8mb3_unicode_ci' NULL DEFAULT NULL,
+                `party_type` VARCHAR(50) COLLATE 'utf8mb3_unicode_ci' NULL DEFAULT NULL,
+                `party_activation_date` DATE NULL DEFAULT NULL,
+                PRIMARY KEY (`party_id`))
+              ENGINE = InnoDB
+              AUTO_INCREMENT = 215;
+
+
+              -- -----------------------------------------------------
+              -- Table `${environment-schema}`.`transaction_platform`
+              -- -----------------------------------------------------
+              CREATE TABLE IF NOT EXISTS `${environment-schema}`.`transaction_platform` (
+                `transaction_platform_id` INT NOT NULL,
+                `transaction_platform_name` VARCHAR(100) COLLATE 'utf8mb3_unicode_ci' NOT NULL,
+                PRIMARY KEY (`transaction_platform_id`))
+              ENGINE = InnoDB;
+
+
+              -- -----------------------------------------------------
+              -- Table `${environment-schema}`.`transactions`
+              -- -----------------------------------------------------
+              CREATE TABLE IF NOT EXISTS `${environment-schema}`.`transactions` (
+                `transaction_id` INT NOT NULL AUTO_INCREMENT,
+                `transaction_date` DATE NULL DEFAULT NULL,
+                `notes` TINYTEXT COLLATE 'utf8mb3_unicode_ci' NULL DEFAULT NULL,
+                `from_party_id` INT NOT NULL,
+                `to_party_id` INT NOT NULL,
+                `transaction_platform_id` INT NOT NULL,
+                `transaction_order_id` VARCHAR(45) NULL,
+                PRIMARY KEY (`transaction_id`),
+                INDEX `fk_transactions_party1_idx` (`from_party_id` ASC) VISIBLE,
+                INDEX `fk_transactions_party2_idx` (`to_party_id` ASC) INVISIBLE,
+                INDEX `fk_transactions_transaction_platform1_idx` (`transaction_platform_id` ASC) VISIBLE,
+                UNIQUE INDEX `uq_transactions_platform_order` (`transaction_platform_id` ASC, `transaction_order_id` ASC) VISIBLE,
+                CONSTRAINT `fk_transactions_party1`
+                  FOREIGN KEY (`from_party_id`)
+                  REFERENCES `${environment-schema}`.`party` (`party_id`)
+                  ON DELETE NO ACTION
+                  ON UPDATE NO ACTION,
+                CONSTRAINT `fk_transactions_party2`
+                  FOREIGN KEY (`to_party_id`)
+                  REFERENCES `${environment-schema}`.`party` (`party_id`)
+                  ON DELETE NO ACTION
+                  ON UPDATE NO ACTION,
+                CONSTRAINT `fk_transactions_transaction_platform1`
+                  FOREIGN KEY (`transaction_platform_id`)
+                  REFERENCES `${environment-schema}`.`transaction_platform` (`transaction_platform_id`)
+                  ON DELETE NO ACTION
+                  ON UPDATE NO ACTION)
+              ENGINE = InnoDB
+              AUTO_INCREMENT = 447;
+
+
+              -- -----------------------------------------------------
+              -- Table `${environment-schema}`.`payment_platform`
+              -- -----------------------------------------------------
+              CREATE TABLE IF NOT EXISTS `${environment-schema}`.`payment_platform` (
+                `payment_platform_id` INT NOT NULL,
+                `payment_platform_name` VARCHAR(50) NOT NULL,
+                `payment_platform_url` VARCHAR(500) NULL,
+                PRIMARY KEY (`payment_platform_id`))
+              ENGINE = InnoDB;
+
+
+              -- -----------------------------------------------------
+              -- Table `${environment-schema}`.`payment`
+              -- -----------------------------------------------------
+              CREATE TABLE IF NOT EXISTS `${environment-schema}`.`payment` (
+                `payment_id` INT NOT NULL AUTO_INCREMENT,
+                `payment_date` DATE NOT NULL,
+                `transaction_id` INT NOT NULL,
+                `currency_code` VARCHAR(5) NOT NULL,
+                `seller_currency_code` VARCHAR(5) COLLATE 'utf8mb3_unicode_ci' NOT NULL,
+                `exchange_rate` DECIMAL(12,5) NOT NULL,
+                `amount` DECIMAL(12,5) NOT NULL,
+                `payment_platform_id` INT NOT NULL,
+                `payment_platform_transaction_id` VARCHAR(45) NOT NULL COMMENT 'This is the specific payment platform transaction identifier. For example, the PayPal Transaction id',
+                PRIMARY KEY (`payment_id`),
+                INDEX `fk_payment_transactions1_idx` (`transaction_id` ASC) VISIBLE,
+                INDEX `fk_payment_payment_platform1_idx` (`payment_platform_id` ASC) VISIBLE,
+                CONSTRAINT `fk_payment_transactions1`
+                  FOREIGN KEY (`transaction_id`)
+                  REFERENCES `${environment-schema}`.`transactions` (`transaction_id`)
+                  ON DELETE NO ACTION
+                  ON UPDATE NO ACTION,
+                CONSTRAINT `fk_payment_payment_platform1`
+                  FOREIGN KEY (`payment_platform_id`)
+                  REFERENCES `${environment-schema}`.`payment_platform` (`payment_platform_id`)
+                  ON DELETE NO ACTION
+                  ON UPDATE NO ACTION)
+              ENGINE = InnoDB;
+
+
+              -- -----------------------------------------------------
+              -- Table `${environment-schema}`.`shipment`
+              -- -----------------------------------------------------
+              CREATE TABLE IF NOT EXISTS `${environment-schema}`.`shipment` (
+                `shipment_id` INT NOT NULL AUTO_INCREMENT,
+                `shipment_date` DATE NOT NULL,
+                `shipment_tracking_number` VARCHAR(45) COLLATE 'utf8mb3_unicode_ci' NULL DEFAULT NULL,
+                `carrier_code` VARCHAR(10) NOT NULL,
+                `external_shipment_id` VARCHAR(100) NULL,
+                `fulfillment_platform_code` VARCHAR(30) NULL,
+                `service_code` VARCHAR(100) NULL,
+                PRIMARY KEY (`shipment_id`),
+                INDEX `fk_shipment_carrier1_idx` (`carrier_code` ASC) VISIBLE,
+                UNIQUE INDEX `uq_shipment_platform_external` (`fulfillment_platform_code` ASC, `external_shipment_id` ASC) VISIBLE,
+                CONSTRAINT `fk_shipment_carrier1`
+                  FOREIGN KEY (`carrier_code`)
+                  REFERENCES `${environment-schema}`.`carrier` (`carrier_code`)
+                  ON DELETE NO ACTION
+                  ON UPDATE NO ACTION)
+              ENGINE = InnoDB;
+
+
+              -- -----------------------------------------------------
+              -- Table `${environment-schema}`.`transaction_type`
+              -- -----------------------------------------------------
+              CREATE TABLE IF NOT EXISTS `${environment-schema}`.`transaction_type` (
+                `transaction_type_code` VARCHAR(5) COLLATE 'utf8mb3_unicode_ci' NOT NULL,
+                `transaction_type_description` VARCHAR(50) COLLATE 'utf8mb3_unicode_ci' NOT NULL,
+                `conversion_factor` INT NULL DEFAULT NULL,
+                PRIMARY KEY (`transaction_type_code`))
+              ENGINE = InnoDB;
+
+
+              -- -----------------------------------------------------
+              -- Table `${environment-schema}`.`transaction_item`
+              -- -----------------------------------------------------
+              CREATE TABLE IF NOT EXISTS `${environment-schema}`.`transaction_item` (
+                `transaction_item_id` INT NOT NULL AUTO_INCREMENT,
+                `transaction_id` INT NOT NULL,
+                `item_inventory_id` INT NOT NULL,
+                `transaction_type_code` VARCHAR(5) COLLATE 'utf8mb3_unicode_ci' NOT NULL,
+                `notes` TEXT COLLATE 'utf8mb3_unicode_ci' NULL DEFAULT NULL,
+                PRIMARY KEY (`transaction_item_id`),
+                INDEX `fk_transaction_item_transactions1_idx` (`transaction_id` ASC) VISIBLE,
+                INDEX `fk_transaction_item_transaction_type1_idx` (`transaction_type_code` ASC) VISIBLE,
+                INDEX `fk_transaction_item_item_inventory1_idx` (`item_inventory_id` ASC) VISIBLE,
+                CONSTRAINT `fk_transaction_item_transaction_type1`
+                  FOREIGN KEY (`transaction_type_code`)
+                  REFERENCES `${environment-schema}`.`transaction_type` (`transaction_type_code`)
+                  ON DELETE NO ACTION
+                  ON UPDATE NO ACTION,
+                CONSTRAINT `fk_transaction_item_transactions1`
+                  FOREIGN KEY (`transaction_id`)
+                  REFERENCES `${environment-schema}`.`transactions` (`transaction_id`)
+                  ON DELETE NO ACTION
+                  ON UPDATE NO ACTION,
+                CONSTRAINT `fk_transaction_item_item_inventory1`
+                  FOREIGN KEY (`item_inventory_id`)
+                  REFERENCES `${environment-schema}`.`item_inventory` (`item_inventory_id`)
+                  ON DELETE NO ACTION
+                  ON UPDATE NO ACTION)
+              ENGINE = InnoDB
+              AUTO_INCREMENT = 2107;
+
+
+              -- -----------------------------------------------------
+              -- Table `${environment-schema}`.`transaction_item_cost`
+              -- -----------------------------------------------------
+              CREATE TABLE IF NOT EXISTS `${environment-schema}`.`transaction_item_cost` (
+                `transaction_item_cost_id` INT NOT NULL AUTO_INCREMENT,
+                `transaction_item_id` INT NOT NULL,
+                `cost_type_code` VARCHAR(10) NOT NULL,
+                `currency_code` VARCHAR(5) NOT NULL,
+                `amount` DECIMAL(12,4) NOT NULL,
+                `notes` TEXT NULL,
+                PRIMARY KEY (`transaction_item_cost_id`),
+                INDEX `fk_transaction_cost_cost_type1_idx` (`cost_type_code` ASC) VISIBLE,
+                INDEX `fk_transaction_item_cost_transaction_item1_idx` (`transaction_item_id` ASC) VISIBLE,
+                CONSTRAINT `fk_transaction_cost_cost_type1`
+                  FOREIGN KEY (`cost_type_code`)
+                  REFERENCES `${environment-schema}`.`cost_type` (`cost_type_code`)
+                  ON DELETE NO ACTION
+                  ON UPDATE NO ACTION,
+                CONSTRAINT `fk_transaction_item_cost_transaction_item1`
+                  FOREIGN KEY (`transaction_item_id`)
+                  REFERENCES `${environment-schema}`.`transaction_item` (`transaction_item_id`)
+                  ON DELETE NO ACTION
+                  ON UPDATE NO ACTION)
+              ENGINE = InnoDB;
+
+
+              -- -----------------------------------------------------
+              -- Table `${environment-schema}`.`transaction_item_image`
+              -- -----------------------------------------------------
+              CREATE TABLE IF NOT EXISTS `${environment-schema}`.`transaction_item_image` (
+                `transaction_item_image_id` INT NOT NULL AUTO_INCREMENT,
+                `transaction_item_image_type_code` VARCHAR(10) COLLATE 'utf8mb3_unicode_ci' NOT NULL,
+                `transaction_item_image_url` VARCHAR(300) COLLATE 'utf8mb3_unicode_ci' NULL DEFAULT NULL,
+                `transaction_item_image_blob` VARCHAR(45) COLLATE 'utf8mb3_unicode_ci' NULL DEFAULT NULL,
+                `transaction_item_item_transaction_id` INT NOT NULL,
+                PRIMARY KEY (`transaction_item_image_id`),
+                INDEX `fk_transaction_item_image_transaction_item1_idx` (`transaction_item_item_transaction_id` ASC) VISIBLE,
+                CONSTRAINT `fk_transaction_item_image_transaction_item1`
+                  FOREIGN KEY (`transaction_item_item_transaction_id`)
+                  REFERENCES `${environment-schema}`.`transaction_item` (`transaction_item_id`)
+                  ON DELETE NO ACTION
+                  ON UPDATE NO ACTION)
+              ENGINE = InnoDB;
+
+
+              -- -----------------------------------------------------
+              -- Table `${environment-schema}`.`transaction_item_shipment`
+              -- -----------------------------------------------------
+              CREATE TABLE IF NOT EXISTS `${environment-schema}`.`transaction_item_shipment` (
+                `item_transaction_id` INT NOT NULL,
+                `shipment_id` INT NOT NULL,
+                PRIMARY KEY (`item_transaction_id`, `shipment_id`),
+                INDEX `fk_transaction_item_has_shipment_shipment1_idx` (`shipment_id` ASC) VISIBLE,
+                INDEX `fk_transaction_item_has_shipment_transaction_item1_idx` (`item_transaction_id` ASC) VISIBLE,
+                CONSTRAINT `fk_transaction_item_has_shipment_transaction_item1`
+                  FOREIGN KEY (`item_transaction_id`)
+                  REFERENCES `${environment-schema}`.`transaction_item` (`transaction_item_id`)
+                  ON DELETE NO ACTION
+                  ON UPDATE NO ACTION,
+                CONSTRAINT `fk_transaction_item_has_shipment_shipment1`
+                  FOREIGN KEY (`shipment_id`)
+                  REFERENCES `${environment-schema}`.`shipment` (`shipment_id`)
+                  ON DELETE NO ACTION
+                  ON UPDATE NO ACTION)
+              ENGINE = InnoDB;
+
+
+              -- -----------------------------------------------------
+              -- Table `${environment-schema}`.`transaction_cost`
+              -- -----------------------------------------------------
+              CREATE TABLE IF NOT EXISTS `${environment-schema}`.`transaction_cost` (
+                `transaction_cost_id` INT NOT NULL AUTO_INCREMENT,
+                `transaction_id` INT NOT NULL,
+                `cost_type_code` VARCHAR(10) NOT NULL,
+                `currency_code` VARCHAR(5) NOT NULL,
+                `amount` DECIMAL(12,4) NOT NULL,
+                `notes` TEXT NULL,
+                PRIMARY KEY (`transaction_cost_id`),
+                INDEX `fk_transaction_cost_cost_type1_idx` (`cost_type_code` ASC) VISIBLE,
+                INDEX `fk_transaction_cost_transactions1_idx` (`transaction_id` ASC) VISIBLE,
+                CONSTRAINT `fk_transaction_cost_cost_type10`
+                  FOREIGN KEY (`cost_type_code`)
+                  REFERENCES `${environment-schema}`.`cost_type` (`cost_type_code`)
+                  ON DELETE NO ACTION
+                  ON UPDATE NO ACTION,
+                CONSTRAINT `fk_transaction_cost_transactions1`
+                  FOREIGN KEY (`transaction_id`)
+                  REFERENCES `${environment-schema}`.`transactions` (`transaction_id`)
+                  ON DELETE NO ACTION
+                  ON UPDATE NO ACTION)
+              ENGINE = InnoDB;
+
+
+              -- -----------------------------------------------------
+              -- Table `${environment-schema}`.`shedlock`
+              -- -----------------------------------------------------
+              CREATE TABLE IF NOT EXISTS `${environment-schema}`.`shedlock` (
+                `name` VARCHAR(64) NOT NULL,
+                `lock_until` TIMESTAMP(3) NOT NULL,
+                `locked_at` TIMESTAMP(3) NOT NULL,
+                `locked_by` VARCHAR(255) NOT NULL,
+                PRIMARY KEY (`name`))
+              ENGINE = InnoDB;
+
+
+              -- -----------------------------------------------------
+              -- Table `${environment-schema}`.`item_inventory_photo`
+              -- -----------------------------------------------------
+              CREATE TABLE IF NOT EXISTS `${environment-schema}`.`item_inventory_photo` (
+                `item_inventory_photo_id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+                `item_inventory_id` INT NOT NULL,
+                `s3_bucket` VARCHAR(500) NULL,
+                `s3_key` VARCHAR(500) NULL,
+                `md5` CHAR(32) NULL DEFAULT NULL,
+                `metadata_hash` CHAR(64) NULL DEFAULT NULL,
+                `file_name` VARCHAR(255) NOT NULL,
+                `file_size` BIGINT NOT NULL,
+                `is_primary` TINYINT NOT NULL DEFAULT FALSE,
+                `caption` VARCHAR(1024) NULL DEFAULT NULL,
+                `status` ENUM('UPLOADED', 'PROCESSED', 'FAILED') NOT NULL DEFAULT 'UPLOADED',
+                `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                `uploaded_at` TIMESTAMP NULL DEFAULT NULL,
+                PRIMARY KEY (`item_inventory_photo_id`),
+                UNIQUE INDEX `uq_item_service_key` (`s3_key` ASC) VISIBLE,
+                INDEX `fk_item_inventory_photo_item_inventory1_idx` (`item_inventory_id` ASC) VISIBLE,
+                UNIQUE INDEX `md5_UNIQUE` (`md5` ASC) VISIBLE,
+                INDEX `idx_item_inventory_photo_status_inventory` (`status` ASC, `item_inventory_id` ASC) VISIBLE,
+                CONSTRAINT `fk_item_inventory_photo_item_inventory1`
+                  FOREIGN KEY (`item_inventory_id`)
+                  REFERENCES `${environment-schema}`.`item_inventory` (`item_inventory_id`)
+                  ON DELETE NO ACTION
+                  ON UPDATE NO ACTION)
+              ENGINE = InnoDB;
+
+
+              -- -----------------------------------------------------
+              -- Table `${environment-schema}`.`external_image_album`
+              -- -----------------------------------------------------
+              CREATE TABLE IF NOT EXISTS `${environment-schema}`.`external_image_album` (
+                `external_image_album_id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+                `external_service_id` INT NOT NULL,
+                `item_inventory_id` INT NOT NULL,
+                `external_album_id` VARCHAR(255) NULL,
+                `title` VARCHAR(500) NOT NULL,
+                `album_url` VARCHAR(1024) NULL,
+                `short_url` VARCHAR(1024) NULL,
+                `sync_status` ENUM('PENDING', 'SYNCED', 'FAILED', 'DELETE_PENDING') NOT NULL DEFAULT 'PENDING',
+                `error_message` TEXT NULL,
+                `last_synced_at` TIMESTAMP NULL,
+                `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (`external_image_album_id`),
+                UNIQUE INDEX `uq_external_image_album_service_inventory` (`external_service_id` ASC, `item_inventory_id` ASC) VISIBLE,
+                UNIQUE INDEX `uq_external_image_album_service_album` (`external_service_id` ASC, `external_album_id` ASC) VISIBLE,
+                INDEX `fk_external_image_album_external_service1_idx` (`external_service_id` ASC) VISIBLE,
+                INDEX `fk_external_image_album_item_inventory1_idx` (`item_inventory_id` ASC) VISIBLE,
+                INDEX `idx_external_image_album_service_inventory_status` (`external_service_id` ASC, `item_inventory_id` ASC, `sync_status` ASC) VISIBLE,
+                CONSTRAINT `fk_external_image_album_external_service1`
+                  FOREIGN KEY (`external_service_id`)
+                  REFERENCES `${environment-schema}`.`external_service` (`external_service_id`)
+                  ON DELETE NO ACTION
+                  ON UPDATE NO ACTION,
+                CONSTRAINT `fk_external_image_album_item_inventory1`
+                  FOREIGN KEY (`item_inventory_id`)
+                  REFERENCES `${environment-schema}`.`item_inventory` (`item_inventory_id`)
+                  ON DELETE NO ACTION
+                  ON UPDATE NO ACTION)
+              ENGINE = InnoDB;
+
+
+              -- -----------------------------------------------------
+              -- Table `${environment-schema}`.`external_image`
+              -- -----------------------------------------------------
+              CREATE TABLE IF NOT EXISTS `${environment-schema}`.`external_image` (
+                `external_image_id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+                `external_service_id` INT NOT NULL,
+                `item_inventory_photo_id` BIGINT UNSIGNED NOT NULL,
+                `external_service_image_id` VARCHAR(255) NULL,
+                `title` VARCHAR(500) NOT NULL,
+                `image_url` VARCHAR(1024) NULL,
+                `md5_at_upload` CHAR(32) NOT NULL,
+                `metadata_hash_at_sync` CHAR(64) NULL DEFAULT NULL,
+                `sync_status` ENUM('PENDING', 'SYNCED', 'FAILED', 'DELETE_PENDING') NOT NULL DEFAULT 'PENDING',
+                `error_message` TEXT NULL,
+                `uploaded_at` TIMESTAMP NULL,
+                `last_synced_at` TIMESTAMP NULL,
+                `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (`external_image_id`),
+                UNIQUE INDEX `uq_external_image_service_photo` (`external_service_id` ASC, `item_inventory_photo_id` ASC) VISIBLE,
+                UNIQUE INDEX `uq_external_image_service_image` (`external_service_id` ASC, `external_service_image_id` ASC) VISIBLE,
+                INDEX `fk_external_image_external_service1_idx` (`external_service_id` ASC) VISIBLE,
+                INDEX `fk_external_image_item_inventory_photo1_idx` (`item_inventory_photo_id` ASC) VISIBLE,
+                INDEX `idx_external_image_service_photo_status_metadata` (`external_service_id` ASC, `item_inventory_photo_id` ASC, `sync_status` ASC, `metadata_hash_at_sync` ASC) VISIBLE,
+                CONSTRAINT `fk_external_image_external_service1`
+                  FOREIGN KEY (`external_service_id`)
+                  REFERENCES `${environment-schema}`.`external_service` (`external_service_id`)
+                  ON DELETE NO ACTION
+                  ON UPDATE NO ACTION,
+                CONSTRAINT `fk_external_image_item_inventory_photo1`
+                  FOREIGN KEY (`item_inventory_photo_id`)
+                  REFERENCES `${environment-schema}`.`item_inventory_photo` (`item_inventory_photo_id`)
+                  ON DELETE NO ACTION
+                  ON UPDATE NO ACTION)
+              ENGINE = InnoDB;
+
+
+              -- -----------------------------------------------------
+              -- Table `${environment-schema}`.`external_image_album_image`
+              -- -----------------------------------------------------
+              CREATE TABLE IF NOT EXISTS `${environment-schema}`.`external_image_album_image` (
+                `external_image_album_id` BIGINT UNSIGNED NOT NULL,
+                `external_image_id` BIGINT UNSIGNED NOT NULL,
+                `sort_order` INT NULL,
+                `is_primary` TINYINT NOT NULL DEFAULT 0,
+                `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (`external_image_album_id`, `external_image_id`),
+                INDEX `fk_external_image_album_image_album1_idx` (`external_image_album_id` ASC) VISIBLE,
+                INDEX `fk_external_image_album_image_image1_idx` (`external_image_id` ASC) VISIBLE,
+                CONSTRAINT `fk_external_image_album_image_album1`
+                  FOREIGN KEY (`external_image_album_id`)
+                  REFERENCES `${environment-schema}`.`external_image_album` (`external_image_album_id`)
+                  ON DELETE NO ACTION
+                  ON UPDATE NO ACTION,
+                CONSTRAINT `fk_external_image_album_image_image1`
+                  FOREIGN KEY (`external_image_id`)
+                  REFERENCES `${environment-schema}`.`external_image` (`external_image_id`)
+                  ON DELETE NO ACTION
+                  ON UPDATE NO ACTION)
+              ENGINE = InnoDB;
+
+
+              -- -----------------------------------------------------
+              -- Table `${environment-schema}`.`item_inventory_external_catalog_item`
+              -- -----------------------------------------------------
+              CREATE TABLE IF NOT EXISTS `${environment-schema}`.`item_inventory_external_catalog_item` (
+                `item_inventory_id` INT NOT NULL COMMENT 'Owned inventory item being mapped to an external catalog item.',
+                `external_catalog_item_id` INT NOT NULL COMMENT 'External catalog item that identifies or describes the owned inventory item.',
+                `is_primary` TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'Indicates the preferred catalog identity for this inventory item when multiple mappings exist.',
+                `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'Timestamp when the catalog mapping was created.',
+                PRIMARY KEY (`item_inventory_id`, `external_catalog_item_id`),
+                INDEX `fk_iieci_external_catalog_item1_idx` (`external_catalog_item_id` ASC) VISIBLE,
+                CONSTRAINT `fk_item_inventory_external_catalog_item_item_inventory1`
+                  FOREIGN KEY (`item_inventory_id`)
+                  REFERENCES `${environment-schema}`.`item_inventory` (`item_inventory_id`)
+                  ON DELETE NO ACTION
+                  ON UPDATE NO ACTION,
+                CONSTRAINT `fk_iieci_external_catalog_item1`
+                  FOREIGN KEY (`external_catalog_item_id`)
+                  REFERENCES `${environment-schema}`.`external_catalog_item` (`external_catalog_item_id`)
+                  ON DELETE NO ACTION
+                  ON UPDATE NO ACTION)
+              ENGINE = InnoDB
+              COMMENT = 'Associates an owned inventory item with one or more external catalog identities.';
+
+
+              -- -----------------------------------------------------
+              -- Table `${environment-schema}`.`marketplace_listing`
+              -- -----------------------------------------------------
+              CREATE TABLE IF NOT EXISTS `${environment-schema}`.`marketplace_listing` (
+                `marketplace_listing_id` INT NOT NULL AUTO_INCREMENT COMMENT 'Surrogate primary key for the marketplace listing.',
+                `item_inventory_id` INT NOT NULL COMMENT 'Owned inventory item being listed for sale.',
+                `listing_external_service_id` INT NOT NULL COMMENT 'Marketplace service where this listing exists or will be published.',
+                `external_catalog_item_id` INT NULL DEFAULT NULL COMMENT 'Optional catalog item identity used by the marketplace listing.',
+                `external_listing_id` VARCHAR(100) COLLATE 'utf8mb3_unicode_ci' NULL DEFAULT NULL COMMENT 'Marketplace-native listing identifier after publication or synchronization.',
+                `external_listing_url` VARCHAR(500) COLLATE 'utf8mb3_unicode_ci' NULL DEFAULT NULL COMMENT 'Public URL for the marketplace listing, when available.',
+                `listing_status_code` VARCHAR(30) COLLATE 'utf8mb3_unicode_ci' NOT NULL COMMENT 'Lifecycle status of the listing, such as draft, active, sold, ended, or sync error.',
+                `title` VARCHAR(250) COLLATE 'utf8mb3_unicode_ci' NULL DEFAULT NULL COMMENT 'Listing title intended for marketplace presentation.',
+                `description` VARCHAR(1024) COLLATE 'utf8mb3_unicode_ci' NULL DEFAULT NULL COMMENT 'Listing description intended for buyer-facing marketplace presentation.',
+                `private_notes` VARCHAR(1024) COLLATE 'utf8mb3_unicode_ci' NULL DEFAULT NULL COMMENT 'Internal notes about the listing that should not be shown to buyers.',
+                `unit_price` DECIMAL(9,2) NULL COMMENT 'Current listing unit price in the listing currency.',
+                `currency_code` CHAR(3) COLLATE 'utf8mb3_unicode_ci' NOT NULL COMMENT 'ISO currency code for the listing price.',
+                `fixed_price` TINYINT(1) NULL DEFAULT 1 COMMENT 'Indicates whether the listing is fixed-price rather than auction or negotiated pricing.',
+                `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'Timestamp when the local listing record was created.',
+                `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT 'Timestamp when the local listing record was last changed.',
+                `published_at` DATETIME NULL DEFAULT NULL COMMENT 'Timestamp when the listing was first published externally.',
+                `ended_at` DATETIME NULL DEFAULT NULL COMMENT 'Timestamp when the listing ended, sold, or was withdrawn.',
+                `last_synchronized_at` DATETIME NULL DEFAULT NULL COMMENT 'Timestamp of the last successful synchronization with the external marketplace.',
+                PRIMARY KEY (`marketplace_listing_id`),
+                INDEX `fk_marketplace_listing_item_inventory1_idx` (`item_inventory_id` ASC) VISIBLE,
+                INDEX `fk_marketplace_listing_listing_external_service1_idx` (`listing_external_service_id` ASC) VISIBLE,
+                INDEX `fk_marketplace_listing_external_catalog_item1_idx` (`external_catalog_item_id` ASC) VISIBLE,
+                UNIQUE INDEX `uq_marketplace_listing_service_listing` (`listing_external_service_id` ASC, `external_listing_id` ASC) VISIBLE,
+                CONSTRAINT `fk_marketplace_listing_item_inventory1`
+                  FOREIGN KEY (`item_inventory_id`)
+                  REFERENCES `${environment-schema}`.`item_inventory` (`item_inventory_id`)
+                  ON DELETE NO ACTION
+                  ON UPDATE NO ACTION,
+                CONSTRAINT `fk_marketplace_listing_listing_external_service1`
+                  FOREIGN KEY (`listing_external_service_id`)
+                  REFERENCES `${environment-schema}`.`external_service` (`external_service_id`)
+                  ON DELETE NO ACTION
+                  ON UPDATE NO ACTION,
+                CONSTRAINT `fk_marketplace_listing_external_catalog_item1`
+                  FOREIGN KEY (`external_catalog_item_id`)
+                  REFERENCES `${environment-schema}`.`external_catalog_item` (`external_catalog_item_id`)
+                  ON DELETE NO ACTION
+                  ON UPDATE NO ACTION)
+              ENGINE = InnoDB
+              COMMENT = 'Generic marketplace listing for an owned inventory item, independent of marketplace-specific listing details.';
+
+
+              -- -----------------------------------------------------
+              -- Table `${environment-schema}`.`bricklink_marketplace_listing`
+              -- -----------------------------------------------------
+              CREATE TABLE IF NOT EXISTS `${environment-schema}`.`bricklink_marketplace_listing` (
+                `marketplace_listing_id` INT NOT NULL COMMENT 'Primary key and foreign key to the generic marketplace listing.',
+                `bricklink_inventory_id` INT NULL DEFAULT NULL COMMENT 'BrickLink inventory identifier assigned by BrickLink.',
+                `bricklink_inventory_status_code` VARCHAR(30) COLLATE 'utf8mb3_unicode_ci' NULL DEFAULT NULL COMMENT 'BrickLink-specific inventory status code returned by the marketplace.',
+                `bricklink_date_created` DATETIME NULL DEFAULT NULL COMMENT 'Creation timestamp reported by BrickLink for the inventory listing.',
+                `color_id` SMALLINT NULL DEFAULT NULL COMMENT 'BrickLink color identifier for the listed item, when applicable.',
+                `color_name` VARCHAR(50) COLLATE 'utf8mb3_unicode_ci' NULL DEFAULT NULL COMMENT 'BrickLink color name for the listed item, when applicable.',
+                `bind_id` INT NULL DEFAULT NULL COMMENT 'BrickLink bind identifier used for related or bundled inventory records.',
+                `bulk` SMALLINT NULL DEFAULT NULL COMMENT 'BrickLink bulk quantity setting for the listing.',
+                `is_retain` TINYINT(1) NOT NULL COMMENT 'BrickLink retain flag indicating whether inventory should be retained after sale behavior.',
+                `is_stock_room` TINYINT(1) NOT NULL COMMENT 'BrickLink stock room flag indicating whether the item is hidden in a stock room.',
+                `stock_room_id` VARCHAR(1) NULL COMMENT 'BrickLink stock room identifier, when the listing is assigned to a stock room.',
+                `sale_rate` TINYINT NULL DEFAULT NULL COMMENT 'BrickLink sale rate or discount percentage, when configured.',
+                `tier_quantity1` SMALLINT NULL DEFAULT NULL COMMENT 'First BrickLink tier price quantity threshold.',
+                `tier_price1` DECIMAL(7,2) NULL DEFAULT NULL COMMENT 'First BrickLink tier price amount.',
+                `tier_quantity2` SMALLINT NULL DEFAULT NULL COMMENT 'Second BrickLink tier price quantity threshold.',
+                `tier_price2` DECIMAL(7,2) NULL DEFAULT NULL COMMENT 'Second BrickLink tier price amount.',
+                `tier_quantity3` SMALLINT NULL DEFAULT NULL COMMENT 'Third BrickLink tier price quantity threshold.',
+                `tier_price3` DECIMAL(7,2) NULL DEFAULT NULL COMMENT 'Third BrickLink tier price amount.',
+                `my_weight` DECIMAL(5,2) NULL DEFAULT NULL COMMENT 'Seller-entered BrickLink item weight for the listing.',
+                `remarks` VARCHAR(1024) COLLATE 'utf8mb3_unicode_ci' NULL DEFAULT NULL COMMENT 'BrickLink seller remarks or internal comments for the listing.',
+                `last_remote_quantity` SMALLINT NULL DEFAULT NULL COMMENT 'Most recent quantity observed on BrickLink during synchronization.',
+                `environment_code` VARCHAR(32) NULL DEFAULT NULL COMMENT 'Environment code this BrickLink inventory row is expected to belong to for safety checks, such as sandbox, dev, or prod.',
+                `system_remarks_hash` VARCHAR(64) NULL DEFAULT NULL COMMENT 'SHA-256 hash of the managed [SYSTEM_BEGIN]...[SYSTEM_END] remarks block last generated or verified by LegoHunter.',
+                `last_remote_verified_at` DATETIME NULL DEFAULT NULL COMMENT 'Timestamp when the remote BrickLink inventory was last fetched and checked against the configured environment safety rules.',
+                `last_remote_safety_status_code` VARCHAR(64) NULL DEFAULT NULL COMMENT 'Most recent safety verification result for the remote BrickLink inventory, such as VERIFIED, STOCK_ROOM_MISMATCH, or ENVIRONMENT_MISMATCH.',
+                `last_remote_safety_message` TEXT NULL DEFAULT NULL COMMENT 'Human-readable explanation of the most recent BrickLink remote safety verification result or blocking reason.',
+                PRIMARY KEY (`marketplace_listing_id`),
+                CONSTRAINT `fk_bricklink_marketplace_listing_marketplace_listing1`
+                  FOREIGN KEY (`marketplace_listing_id`)
+                  REFERENCES `${environment-schema}`.`marketplace_listing` (`marketplace_listing_id`)
+                  ON DELETE NO ACTION
+                  ON UPDATE NO ACTION)
+              ENGINE = InnoDB
+              COMMENT = 'BrickLink-specific extension data for a generic marketplace listing, including inventory metadata, stockroom placement, seller remarks, and remote safety verification state used by non-production sync guards.';
+
+
+              -- -----------------------------------------------------
+              -- Table `${environment-schema}`.`ebay_marketplace_listing`
+              -- -----------------------------------------------------
+              CREATE TABLE IF NOT EXISTS `${environment-schema}`.`ebay_marketplace_listing` (
+                `marketplace_listing_id` INT NOT NULL COMMENT 'Primary key and foreign key to the generic marketplace listing.',
+                `ebay_item_id` VARCHAR(100) COLLATE 'utf8mb3_unicode_ci' NULL DEFAULT NULL COMMENT 'eBay item or listing identifier assigned by eBay.',
+                `ebay_category_id` VARCHAR(50) COLLATE 'utf8mb3_unicode_ci' NULL DEFAULT NULL COMMENT 'eBay category identifier selected for the listing.',
+                `condition_id` VARCHAR(50) COLLATE 'utf8mb3_unicode_ci' NULL DEFAULT NULL COMMENT 'eBay condition identifier selected for the listing.',
+                `condition_descriptor_fields` TEXT COLLATE 'utf8mb3_unicode_ci' NULL DEFAULT NULL COMMENT 'Serialized eBay condition descriptor data required for some categories.',
+                `listing_format` VARCHAR(50) COLLATE 'utf8mb3_unicode_ci' NULL DEFAULT NULL COMMENT 'eBay listing format such as fixed price or auction.',
+                `duration` VARCHAR(50) COLLATE 'utf8mb3_unicode_ci' NULL DEFAULT NULL COMMENT 'eBay listing duration policy or code.',
+                `shipping_policy_id` VARCHAR(100) COLLATE 'utf8mb3_unicode_ci' NULL DEFAULT NULL COMMENT 'eBay fulfillment or shipping business policy identifier.',
+                `payment_policy_id` VARCHAR(100) COLLATE 'utf8mb3_unicode_ci' NULL DEFAULT NULL COMMENT 'eBay payment business policy identifier.',
+                `return_policy_id` VARCHAR(100) COLLATE 'utf8mb3_unicode_ci' NULL DEFAULT NULL COMMENT 'eBay return business policy identifier.',
+                PRIMARY KEY (`marketplace_listing_id`),
+                CONSTRAINT `fk_ebay_marketplace_listing_marketplace_listing1`
+                  FOREIGN KEY (`marketplace_listing_id`)
+                  REFERENCES `${environment-schema}`.`marketplace_listing` (`marketplace_listing_id`)
+                  ON DELETE NO ACTION
+                  ON UPDATE NO ACTION)
+              ENGINE = InnoDB
+              COMMENT = 'eBay-specific extension data for a generic marketplace listing.';
+
+
+              -- -----------------------------------------------------
+              -- Table `${environment-schema}`.`ebay_listing_item_specific`
+              -- -----------------------------------------------------
+              CREATE TABLE IF NOT EXISTS `${environment-schema}`.`ebay_listing_item_specific` (
+                `marketplace_listing_id` INT NOT NULL COMMENT 'eBay listing extension row that owns this item specific.',
+                `name` VARCHAR(100) COLLATE 'utf8mb3_unicode_ci' NOT NULL COMMENT 'eBay item specific name, such as Brand, Theme, or Set Number.',
+                `value` VARCHAR(500) COLLATE 'utf8mb3_unicode_ci' NOT NULL COMMENT 'Value for the eBay item specific name.',
+                PRIMARY KEY (`marketplace_listing_id`, `name`, `value`),
+                CONSTRAINT `fk_ebay_listing_item_specific_ebay_marketplace_listing1`
+                  FOREIGN KEY (`marketplace_listing_id`)
+                  REFERENCES `${environment-schema}`.`ebay_marketplace_listing` (`marketplace_listing_id`)
+                  ON DELETE NO ACTION
+                  ON UPDATE NO ACTION)
+              ENGINE = InnoDB
+              COMMENT = 'Name/value item specifics attached to an eBay marketplace listing.';
+
+
+              -- -----------------------------------------------------
+              -- Table `${environment-schema}`.`external_service_capability`
+              -- -----------------------------------------------------
+              CREATE TABLE IF NOT EXISTS `${environment-schema}`.`external_service_capability` (
+                `external_service_id` INT NOT NULL COMMENT 'External service that supports the capability.',
+                `capability_code` VARCHAR(30) COLLATE 'utf8mb3_unicode_ci' NOT NULL COMMENT 'Capability code such as CATALOG, MARKETPLACE_LISTING, IMAGE_HOSTING, or ORDER_SYNC.',
+                PRIMARY KEY (`external_service_id`, `capability_code`),
+                CONSTRAINT `fk_external_service_capability_external_service1`
+                  FOREIGN KEY (`external_service_id`)
+                  REFERENCES `${environment-schema}`.`external_service` (`external_service_id`)
+                  ON DELETE NO ACTION
+                  ON UPDATE NO ACTION)
+              ENGINE = InnoDB
+              COMMENT = 'Capabilities supported by an external service, allowing one service to participate in multiple integration roles.';
+
+
+              -- -----------------------------------------------------
+              -- Table `${environment-schema}`.`external_catalog_item_category`
+              -- -----------------------------------------------------
+              CREATE TABLE IF NOT EXISTS `${environment-schema}`.`external_catalog_item_category` (
+                `external_catalog_item_id` INT NOT NULL COMMENT 'External catalog item assigned to the category.',
+                `external_category_id` INT NOT NULL COMMENT 'External category assigned to the catalog item.',
+                `is_primary` TINYINT(1) NOT NULL COMMENT 'Indicates the preferred category for the catalog item when multiple categories apply.',
+                `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'Timestamp when the catalog item category assignment was created.',
+                PRIMARY KEY (`external_catalog_item_id`, `external_category_id`),
+                INDEX `fk_external_catalog_item_category_catalog_item1_idx` (`external_catalog_item_id` ASC) VISIBLE,
+                INDEX `fk_external_catalog_item_category_category1_idx` (`external_category_id` ASC) VISIBLE,
+                CONSTRAINT `fk_external_catalog_item_category_catalog_item1`
+                  FOREIGN KEY (`external_catalog_item_id`)
+                  REFERENCES `${environment-schema}`.`external_catalog_item` (`external_catalog_item_id`)
+                  ON DELETE NO ACTION
+                  ON UPDATE NO ACTION,
+                CONSTRAINT `fk_external_catalog_item_category_category1`
+                  FOREIGN KEY (`external_category_id`)
+                  REFERENCES `${environment-schema}`.`external_category` (`external_category_id`)
+                  ON DELETE NO ACTION
+                  ON UPDATE NO ACTION)
+              ENGINE = InnoDB
+              COMMENT = 'Many-to-many classification of external catalog items into external service categories.';
+
+
+              -- -----------------------------------------------------
+              -- Table `${environment-schema}`.`marketplace_order_sync_run`
+              -- -----------------------------------------------------
+              CREATE TABLE IF NOT EXISTS `${environment-schema}`.`marketplace_order_sync_run` (
+                `marketplace_order_sync_run_id` INT NOT NULL AUTO_INCREMENT COMMENT 'Surrogate primary key for a marketplace order sync run.',
+                `marketplace_code` VARCHAR(30) COLLATE 'utf8mb3_unicode_ci' NOT NULL COMMENT 'Source marketplace code such as bricklink or ebay.',
+                `sync_job_name` VARCHAR(100) COLLATE 'utf8mb3_unicode_ci' NULL DEFAULT NULL COMMENT 'Name of the scheduled job or manual process that ran this sync.',
+                `sync_direction` VARCHAR(20) COLLATE 'utf8mb3_unicode_ci' NOT NULL COMMENT 'Marketplace order direction being synced, such as inbound orders.',
+                `sync_status_code` VARCHAR(30) COLLATE 'utf8mb3_unicode_ci' NOT NULL COMMENT 'Run status such as STARTED, SUCCESS, PARTIAL_FAILURE, or FAILED.',
+                `started_at` DATETIME NOT NULL COMMENT 'Timestamp when this sync run started.',
+                `completed_at` DATETIME NULL DEFAULT NULL COMMENT 'Timestamp when this sync run completed.',
+                `orders_discovered` INT NOT NULL DEFAULT 0 COMMENT 'Number of marketplace orders discovered during the run.',
+                `orders_fetched` INT NOT NULL DEFAULT 0 COMMENT 'Number of marketplace orders fetched successfully during the run.',
+                `orders_failed` INT NOT NULL DEFAULT 0 COMMENT 'Number of marketplace orders that failed during the run.',
+                `error_message` TEXT COLLATE 'utf8mb3_unicode_ci' NULL DEFAULT NULL COMMENT 'Failure message or diagnostic summary for failed/partial runs.',
+                `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'Timestamp when this row was created.',
+                `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT 'Timestamp when this row was last updated.',
+                PRIMARY KEY (`marketplace_order_sync_run_id`),
+                INDEX `idx_marketplace_order_sync_run_marketplace_status` (`marketplace_code` ASC, `sync_status_code` ASC) VISIBLE,
+                INDEX `idx_marketplace_order_sync_run_started_at` (`started_at` ASC) VISIBLE)
+              COMMENT = 'Captures one execution of a marketplace order sync job for auditability and metrics.';
+
+
+              -- -----------------------------------------------------
+              -- Table `${environment-schema}`.`marketplace_order`
+              -- -----------------------------------------------------
+              CREATE TABLE IF NOT EXISTS `${environment-schema}`.`marketplace_order` (
+                `marketplace_order_id` INT NOT NULL AUTO_INCREMENT COMMENT 'Surrogate primary key for a marketplace order snapshot.',
+                `last_sync_run_id` INT NULL DEFAULT NULL COMMENT 'Most recent sync run that observed this marketplace order.',
+                `marketplace_code` VARCHAR(30) COLLATE 'utf8mb3_unicode_ci' NOT NULL COMMENT 'Source marketplace code such as bricklink or ebay.',
+                `external_order_id` VARCHAR(100) COLLATE 'utf8mb3_unicode_ci' NOT NULL COMMENT 'Marketplace-native order identifier.',
+                `order_direction` VARCHAR(20) COLLATE 'utf8mb3_unicode_ci' NOT NULL COMMENT 'Order direction from the marketplace perspective.',
+                `external_status_code` VARCHAR(50) COLLATE 'utf8mb3_unicode_ci' NOT NULL COMMENT 'Marketplace-native order status.',
+                `ordered_at` DATETIME NULL DEFAULT NULL COMMENT 'Marketplace timestamp when the order was placed.',
+                `status_changed_at` DATETIME NULL DEFAULT NULL COMMENT 'Marketplace timestamp when order status last changed.',
+                `buyer_display_name` VARCHAR(150) COLLATE 'utf8mb3_unicode_ci' NULL DEFAULT NULL COMMENT 'Buyer display name when retained for fulfillment or audit.',
+                `buyer_email` VARCHAR(255) COLLATE 'utf8mb3_unicode_ci' NULL DEFAULT NULL COMMENT 'Buyer email when retained for fulfillment or audit.',
+                `payment_status_code` VARCHAR(50) COLLATE 'utf8mb3_unicode_ci' NULL DEFAULT NULL COMMENT 'Marketplace-native payment status.',
+                `payment_method` VARCHAR(100) COLLATE 'utf8mb3_unicode_ci' NULL DEFAULT NULL COMMENT 'Marketplace-native payment method.',
+                `payment_currency_code` CHAR(3) COLLATE 'utf8mb3_unicode_ci' NULL DEFAULT NULL COMMENT 'Payment currency code.',
+                `paid_at` DATETIME NULL DEFAULT NULL COMMENT 'Marketplace timestamp when payment was received.',
+                `shipping_method` VARCHAR(150) COLLATE 'utf8mb3_unicode_ci' NULL DEFAULT NULL COMMENT 'Marketplace-native shipping method label.',
+                `shipping_method_id` VARCHAR(100) COLLATE 'utf8mb3_unicode_ci' NULL DEFAULT NULL COMMENT 'Marketplace-native shipping method identifier.',
+                `shipping_address_present` TINYINT(1) NULL DEFAULT 0 COMMENT 'Indicates whether the marketplace supplied a shipping address.',
+                `tracking_present` TINYINT(1) NULL DEFAULT 0 COMMENT 'Indicates whether the marketplace order currently has tracking.',
+                `subtotal_amount` DECIMAL(10,2) NULL DEFAULT NULL COMMENT 'Order subtotal in source currency.',
+                `shipping_amount` DECIMAL(10,2) NULL DEFAULT NULL COMMENT 'Order shipping amount in source currency.',
+                `grand_total_amount` DECIMAL(10,2) NULL DEFAULT NULL COMMENT 'Order grand total in source currency.',
+                `currency_code` CHAR(3) COLLATE 'utf8mb3_unicode_ci' NULL DEFAULT NULL COMMENT 'Order currency code.',
+                `display_currency_code` CHAR(3) COLLATE 'utf8mb3_unicode_ci' NULL DEFAULT NULL COMMENT 'Marketplace display currency code when different from source currency.',
+                `total_count` INT NULL DEFAULT NULL COMMENT 'Total item count reported by the marketplace.',
+                `unique_count` INT NULL DEFAULT NULL COMMENT 'Unique item count reported by the marketplace.',
+                `total_weight` DECIMAL(10,3) NULL DEFAULT NULL COMMENT 'Total marketplace-reported order weight.',
+                `is_invoiced` TINYINT(1) NULL DEFAULT NULL COMMENT 'Marketplace invoiced flag when available.',
+                `is_filed` TINYINT(1) NULL DEFAULT NULL COMMENT 'Marketplace filed/archived flag when available.',
+                `sent_drive_thru` TINYINT(1) NULL DEFAULT NULL COMMENT 'BrickLink drive-thru sent flag when available.',
+                `require_insurance` TINYINT(1) NULL DEFAULT NULL COMMENT 'Marketplace require-insurance flag when available.',
+                `payload_hash` VARCHAR(64) COLLATE 'utf8mb3_unicode_ci' NULL DEFAULT NULL COMMENT 'Hash of the normalized marketplace payload used for idempotent change detection.',
+                `last_seen_at` DATETIME NULL DEFAULT NULL COMMENT 'Timestamp when this order was most recently observed by sync.',
+                `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'Timestamp when this row was created.',
+                `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT 'Timestamp when this row was last updated.',
+                PRIMARY KEY (`marketplace_order_id`),
+                UNIQUE INDEX `uq_marketplace_order_source_order` (`marketplace_code` ASC, `external_order_id` ASC) VISIBLE,
+                INDEX `idx_marketplace_order_status` (`marketplace_code` ASC, `external_status_code` ASC) VISIBLE,
+                INDEX `idx_marketplace_order_last_sync_run` (`last_sync_run_id` ASC) VISIBLE,
+                CONSTRAINT `fk_marketplace_order_last_sync_run`
+                  FOREIGN KEY (`last_sync_run_id`)
+                  REFERENCES `${environment-schema}`.`marketplace_order_sync_run` (`marketplace_order_sync_run_id`)
+                  ON DELETE NO ACTION
+                  ON UPDATE NO ACTION)
+              COMMENT = 'Idempotent source snapshot for an order observed from an external marketplace.';
+
+
+              -- -----------------------------------------------------
+              -- Table `${environment-schema}`.`marketplace_order_item`
+              -- -----------------------------------------------------
+              CREATE TABLE IF NOT EXISTS `${environment-schema}`.`marketplace_order_item` (
+                `marketplace_order_item_id` INT NOT NULL AUTO_INCREMENT COMMENT 'Surrogate primary key for a marketplace order line item.',
+                `marketplace_order_id` INT NOT NULL COMMENT 'Parent marketplace order.',
+                `marketplace_listing_id` INT NULL DEFAULT NULL COMMENT 'Marketplace listing associated with this sold item when known.',
+                `item_inventory_id` INT NULL DEFAULT NULL COMMENT 'Owned inventory item associated with this order item when mapped.',
+                `external_order_item_id` VARCHAR(100) COLLATE 'utf8mb3_unicode_ci' NULL DEFAULT NULL COMMENT 'Marketplace-native order item identifier when available.',
+                `external_inventory_id` VARCHAR(100) COLLATE 'utf8mb3_unicode_ci' NULL DEFAULT NULL COMMENT 'Marketplace-native inventory/listing identifier, such as BrickLink inventory_id.',
+                `external_item_no` VARCHAR(100) COLLATE 'utf8mb3_unicode_ci' NULL DEFAULT NULL COMMENT 'Marketplace-native catalog item number.',
+                `external_item_type` VARCHAR(30) COLLATE 'utf8mb3_unicode_ci' NULL DEFAULT NULL COMMENT 'Marketplace-native catalog item type.',
+                `color_id` INT NULL DEFAULT NULL COMMENT 'Marketplace color identifier when available.',
+                `color_name` VARCHAR(100) COLLATE 'utf8mb3_unicode_ci' NULL DEFAULT NULL COMMENT 'Marketplace color name when available.',
+                `quantity` INT NOT NULL DEFAULT 0 COMMENT 'Quantity purchased for this line.',
+                `condition_code` VARCHAR(10) COLLATE 'utf8mb3_unicode_ci' NULL DEFAULT NULL COMMENT 'Marketplace condition code, such as N or U.',
+                `completeness_code` VARCHAR(10) COLLATE 'utf8mb3_unicode_ci' NULL DEFAULT NULL COMMENT 'Marketplace completeness code when available.',
+                `unit_price` DECIMAL(10,2) NULL DEFAULT NULL COMMENT 'Unit price before marketplace final-price adjustments.',
+                `final_unit_price` DECIMAL(10,2) NULL DEFAULT NULL COMMENT 'Final marketplace unit price after marketplace adjustments.',
+                `currency_code` CHAR(3) COLLATE 'utf8mb3_unicode_ci' NULL DEFAULT NULL COMMENT 'Line item currency code.',
+                `item_weight` DECIMAL(10,3) NULL DEFAULT NULL COMMENT 'Marketplace-reported item weight.',
+                `remarks` TEXT COLLATE 'utf8mb3_unicode_ci' NULL DEFAULT NULL COMMENT 'Marketplace item remarks captured from the source order item when available.',
+                `description` TEXT COLLATE 'utf8mb3_unicode_ci' NULL DEFAULT NULL COMMENT 'Marketplace item description captured from the source order item when available.',
+                `payload_hash` VARCHAR(64) COLLATE 'utf8mb3_unicode_ci' NULL DEFAULT NULL COMMENT 'Hash of the normalized marketplace item payload used for idempotent change detection.',
+                `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'Timestamp when this row was created.',
+                `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT 'Timestamp when this row was last updated.',
+                PRIMARY KEY (`marketplace_order_item_id`),
+                INDEX `idx_marketplace_order_item_order` (`marketplace_order_id` ASC) VISIBLE,
+                INDEX `idx_marketplace_order_item_listing` (`marketplace_listing_id` ASC) VISIBLE,
+                INDEX `idx_marketplace_order_item_inventory` (`item_inventory_id` ASC) VISIBLE,
+                INDEX `idx_marketplace_order_item_external_inventory` (`external_inventory_id` ASC) VISIBLE,
+                CONSTRAINT `fk_marketplace_order_item_order`
+                  FOREIGN KEY (`marketplace_order_id`)
+                  REFERENCES `${environment-schema}`.`marketplace_order` (`marketplace_order_id`)
+                  ON DELETE NO ACTION
+                  ON UPDATE NO ACTION,
+                CONSTRAINT `fk_marketplace_order_item_listing`
+                  FOREIGN KEY (`marketplace_listing_id`)
+                  REFERENCES `${environment-schema}`.`marketplace_listing` (`marketplace_listing_id`)
+                  ON DELETE NO ACTION
+                  ON UPDATE NO ACTION,
+                CONSTRAINT `fk_marketplace_order_item_inventory`
+                  FOREIGN KEY (`item_inventory_id`)
+                  REFERENCES `${environment-schema}`.`item_inventory` (`item_inventory_id`)
+                  ON DELETE NO ACTION
+                  ON UPDATE NO ACTION)
+              COMMENT = 'Line-item snapshot for an order observed from an external marketplace.';
+
+
+              -- -----------------------------------------------------
+              -- Table `${environment-schema}`.`marketplace_order_transaction_link`
+              -- -----------------------------------------------------
+              CREATE TABLE IF NOT EXISTS `${environment-schema}`.`marketplace_order_transaction_link` (
+                `marketplace_order_transaction_link_id` INT NOT NULL AUTO_INCREMENT COMMENT 'Surrogate primary key for a marketplace order to transaction link.',
+                `marketplace_order_id` INT NOT NULL COMMENT 'Marketplace order being projected into the canonical transaction model.',
+                `transaction_id` INT NOT NULL COMMENT 'Canonical transaction created or updated from the marketplace order.',
+                `marketplace_order_item_id` INT NULL DEFAULT NULL COMMENT 'Optional marketplace order item when this link represents an item-level sale, removal, return, or relist.',
+                `transaction_item_id` INT NULL DEFAULT NULL COMMENT 'Optional canonical transaction item associated with an item-level marketplace link.',
+                `link_type_code` VARCHAR(30) COLLATE 'utf8mb3_unicode_ci' NOT NULL COMMENT 'Type of projection link, such as SALE, CANCELLATION, RETURN, ITEM_RETURN, ITEM_REMOVED, RELIST, or ADJUSTMENT.',
+                `link_status_code` VARCHAR(30) COLLATE 'utf8mb3_unicode_ci' NOT NULL COMMENT 'Projection/link status such as ACTIVE, SUPERSEDED, or ERROR.',
+                `linked_at` DATETIME NOT NULL COMMENT 'Timestamp when the marketplace order was linked to the transaction.',
+                `unlinked_at` DATETIME NULL DEFAULT NULL COMMENT 'Timestamp when this projection link was superseded or deactivated, if applicable.',
+                `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'Timestamp when this row was created.',
+                `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT 'Timestamp when this row was last updated.',
+                PRIMARY KEY (`marketplace_order_transaction_link_id`),
+                INDEX `idx_marketplace_order_transaction_link_order` (`marketplace_order_id` ASC) VISIBLE,
+                INDEX `idx_marketplace_order_transaction_link_transaction` (`transaction_id` ASC) VISIBLE,
+                INDEX `idx_marketplace_order_transaction_link_order_item` (`marketplace_order_item_id` ASC) VISIBLE,
+                INDEX `idx_marketplace_order_transaction_link_transaction_item` (`transaction_item_id` ASC) VISIBLE,
+                INDEX `idx_marketplace_order_transaction_link_type_status` (`link_type_code` ASC, `link_status_code` ASC) VISIBLE,
+                CONSTRAINT `fk_marketplace_order_transaction_link_order`
+                  FOREIGN KEY (`marketplace_order_id`)
+                  REFERENCES `${environment-schema}`.`marketplace_order` (`marketplace_order_id`)
+                  ON DELETE NO ACTION
+                  ON UPDATE NO ACTION,
+                CONSTRAINT `fk_marketplace_order_transaction_link_transaction`
+                  FOREIGN KEY (`transaction_id`)
+                  REFERENCES `${environment-schema}`.`transactions` (`transaction_id`)
+                  ON DELETE NO ACTION
+                  ON UPDATE NO ACTION,
+                CONSTRAINT `fk_marketplace_order_transaction_link_order_item`
+                  FOREIGN KEY (`marketplace_order_item_id`)
+                  REFERENCES `${environment-schema}`.`marketplace_order_item` (`marketplace_order_item_id`)
+                  ON DELETE NO ACTION
+                  ON UPDATE NO ACTION,
+                CONSTRAINT `fk_marketplace_order_transaction_link_transaction_item`
+                  FOREIGN KEY (`transaction_item_id`)
+                  REFERENCES `${environment-schema}`.`transaction_item` (`transaction_item_id`)
+                  ON DELETE NO ACTION
+                  ON UPDATE NO ACTION)
+              COMMENT = 'Many-to-many projection links between marketplace source orders/items and canonical transaction records/items, including sales, cancellations, removals, returns, and relists.';
+
+
+              -- -----------------------------------------------------
+              -- Table `${environment-schema}`.`marketplace_order_payload`
+              -- -----------------------------------------------------
+              CREATE TABLE IF NOT EXISTS `${environment-schema}`.`marketplace_order_payload` (
+                `marketplace_order_payload_id` INT NOT NULL AUTO_INCREMENT COMMENT 'Surrogate primary key for a captured marketplace source payload.',
+                `marketplace_order_id` INT NOT NULL COMMENT 'Marketplace order associated with this captured payload.',
+                `marketplace_order_sync_run_id` INT NULL DEFAULT NULL COMMENT 'Sync run that captured this payload.',
+                `payload_type_code` VARCHAR(50) COLLATE 'utf8mb3_unicode_ci' NOT NULL COMMENT 'Type of source payload, such as ORDER_SUMMARY, ORDER_DETAIL, ORDER_ITEMS, EBAY_ORDER, or EBAY_FULFILLMENT.',
+                `payload_hash` VARCHAR(64) COLLATE 'utf8mb3_unicode_ci' NULL DEFAULT NULL COMMENT 'Hash of the captured payload used for change detection.',
+                `payload_json` TEXT COLLATE 'utf8mb3_unicode_ci' NULL DEFAULT NULL COMMENT 'Raw or normalized source marketplace payload. Treat as sensitive because it may contain buyer/shipping PII.',
+                `captured_at` DATETIME NOT NULL COMMENT 'Timestamp when the payload was captured from the marketplace API.',
+                `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'Timestamp when this row was created.',
+                PRIMARY KEY (`marketplace_order_payload_id`),
+                INDEX `idx_marketplace_order_payload_order` (`marketplace_order_id` ASC) VISIBLE,
+                INDEX `idx_marketplace_order_payload_sync_run` (`marketplace_order_sync_run_id` ASC) VISIBLE,
+                INDEX `idx_marketplace_order_payload_type_hash` (`payload_type_code` ASC, `payload_hash` ASC) VISIBLE,
+                CONSTRAINT `fk_marketplace_order_payload_order`
+                  FOREIGN KEY (`marketplace_order_id`)
+                  REFERENCES `${environment-schema}`.`marketplace_order` (`marketplace_order_id`)
+                  ON DELETE NO ACTION
+                  ON UPDATE NO ACTION,
+                CONSTRAINT `fk_marketplace_order_payload_sync_run`
+                  FOREIGN KEY (`marketplace_order_sync_run_id`)
+                  REFERENCES `${environment-schema}`.`marketplace_order_sync_run` (`marketplace_order_sync_run_id`)
+                  ON DELETE NO ACTION
+                  ON UPDATE NO ACTION)
+              COMMENT = 'Captured marketplace source payloads for audit, debugging, idempotency, and future remapping.';
+
+
+              -- -----------------------------------------------------
+              -- Table `${environment-schema}`.`pricing_crawl_work_item`
+              -- -----------------------------------------------------
+              CREATE TABLE IF NOT EXISTS `${environment-schema}`.`pricing_crawl_work_item` (
+                `pricing_crawl_work_item_id` BIGINT NOT NULL AUTO_INCREMENT COMMENT 'Surrogate primary key for the pricing crawl work item.',
+                `marketplace_listing_id` INT NOT NULL COMMENT 'Marketplace listing whose competitive price data should be refreshed.',
+                `external_catalog_item_id` INT NOT NULL COMMENT 'External catalog item being priced; for BrickLink this is the public item such as a set number.',
+                `source_external_service_id` INT NOT NULL COMMENT 'External service from which pricing data should be crawled, such as BrickLink.',
+                `work_status_code` VARCHAR(32) NOT NULL COMMENT 'Lifecycle status of the crawl work item, such as pending, claimed, succeeded, failed, or skipped.',
+                `attempt_count` INT NOT NULL DEFAULT 0 COMMENT 'Number of crawl attempts already made for this work item.',
+                `max_attempts` INT NOT NULL DEFAULT 3 COMMENT 'Maximum number of crawl attempts allowed before the work item should stop retrying.',
+                `next_attempt_at` DATETIME NOT NULL COMMENT 'Earliest timestamp at which this work item is eligible to be claimed by a pricing crawler.',
+                `claimed_at` DATETIME NULL COMMENT 'Timestamp when a worker claimed this work item for processing.',
+                `completed_at` DATETIME NULL COMMENT 'Timestamp when processing finished successfully, failed terminally, or was skipped.',
+                `source_request_url` VARCHAR(1024) NULL COMMENT 'Source endpoint URL used or planned for the pricing crawl request.',
+                `source_request_parameters` TEXT NULL COMMENT 'Serialized source request parameters used or planned for the pricing crawl request.',
+                `last_error_message` TEXT NULL COMMENT 'Most recent crawl failure or skip reason captured for operational review.',
+                `created_at` DATETIME NOT NULL COMMENT 'Timestamp when the work item was created.',
+                `updated_at` DATETIME NOT NULL COMMENT 'Timestamp when the work item was last updated.',
+                PRIMARY KEY (`pricing_crawl_work_item_id`),
+                INDEX `idx_pricing_crawl_work_item_status_due` (`work_status_code` ASC, `next_attempt_at` ASC) VISIBLE,
+                INDEX `idx_pricing_crawl_work_item_listing` (`marketplace_listing_id` ASC) VISIBLE,
+                CONSTRAINT `fk_pricing_crawl_work_item_marketplace_listing1`
+                  FOREIGN KEY (`marketplace_listing_id`)
+                  REFERENCES `${environment-schema}`.`marketplace_listing` (`marketplace_listing_id`)
+                  ON DELETE NO ACTION
+                  ON UPDATE NO ACTION,
+                CONSTRAINT `fk_pricing_crawl_work_item_catalog_item1`
+                  FOREIGN KEY (`external_catalog_item_id`)
+                  REFERENCES `${environment-schema}`.`external_catalog_item` (`external_catalog_item_id`)
+                  ON DELETE NO ACTION
+                  ON UPDATE NO ACTION,
+                CONSTRAINT `fk_pricing_crawl_work_item_source_service1`
+                  FOREIGN KEY (`source_external_service_id`)
+                  REFERENCES `${environment-schema}`.`external_service` (`external_service_id`)
+                  ON DELETE NO ACTION
+                  ON UPDATE NO ACTION)
+              ENGINE = InnoDB
+              COMMENT = 'Durable work queue item used to pace and retry marketplace pricing crawls without running one long sleeping job.';
+
+
+              -- -----------------------------------------------------
+              -- Table `${environment-schema}`.`pricing_snapshot`
+              -- -----------------------------------------------------
+              CREATE TABLE IF NOT EXISTS `${environment-schema}`.`pricing_snapshot` (
+                `pricing_snapshot_id` BIGINT NOT NULL AUTO_INCREMENT COMMENT 'Surrogate primary key for the pricing snapshot.',
+                `pricing_crawl_work_item_id` BIGINT NULL COMMENT 'Optional crawl work item that produced this pricing snapshot.',
+                `marketplace_listing_id` INT NULL COMMENT 'Marketplace listing that requested this pricing snapshot, when the snapshot was listing-driven.',
+                `external_catalog_item_id` INT NOT NULL COMMENT 'External catalog item whose marketplace pricing was captured.',
+                `source_external_service_id` INT NOT NULL COMMENT 'External service from which the pricing snapshot was captured, such as BrickLink.',
+                `source_item_key` VARCHAR(255) NOT NULL COMMENT 'Marketplace item key used for human-readable source identity, such as the BrickLink item number.',
+                `source_unique_key` VARCHAR(255) NULL COMMENT 'Marketplace internal unique key used by source endpoints, such as BrickLink internal idItem.',
+                `item_condition_code` VARCHAR(32) NULL COMMENT 'Source item condition code used to filter or describe the snapshot, such as New or Used.',
+                `completeness_code` VARCHAR(64) NULL COMMENT 'Source completeness or sub-condition used to filter or describe the snapshot, such as sealed, complete, or incomplete.',
+                `source_request_url` VARCHAR(1024) NULL COMMENT 'Source endpoint URL used to capture this pricing snapshot.',
+                `source_request_parameters` TEXT NULL COMMENT 'Serialized source request parameters used to capture this pricing snapshot.',
+                `raw_payload_hash` VARCHAR(64) NULL COMMENT 'Hash of the raw source payload for duplicate detection and audit without storing the full payload here.',
+                `comparable_count` INT NULL COMMENT 'Number of comparable listings captured in this snapshot and available to pricing algorithms.',
+                `captured_at` DATETIME NOT NULL COMMENT 'Timestamp when the source pricing data was captured.',
+                `created_at` DATETIME NOT NULL COMMENT 'Timestamp when the pricing snapshot row was created.',
+                PRIMARY KEY (`pricing_snapshot_id`),
+                INDEX `idx_pricing_snapshot_listing` (`marketplace_listing_id` ASC, `captured_at` ASC) VISIBLE,
+                INDEX `idx_pricing_snapshot_catalog` (`external_catalog_item_id` ASC, `captured_at` ASC) VISIBLE,
+                CONSTRAINT `fk_pricing_snapshot_work_item1`
+                  FOREIGN KEY (`pricing_crawl_work_item_id`)
+                  REFERENCES `${environment-schema}`.`pricing_crawl_work_item` (`pricing_crawl_work_item_id`)
+                  ON DELETE NO ACTION
+                  ON UPDATE NO ACTION,
+                CONSTRAINT `fk_pricing_snapshot_marketplace_listing1`
+                  FOREIGN KEY (`marketplace_listing_id`)
+                  REFERENCES `${environment-schema}`.`marketplace_listing` (`marketplace_listing_id`)
+                  ON DELETE NO ACTION
+                  ON UPDATE NO ACTION,
+                CONSTRAINT `fk_pricing_snapshot_catalog_item1`
+                  FOREIGN KEY (`external_catalog_item_id`)
+                  REFERENCES `${environment-schema}`.`external_catalog_item` (`external_catalog_item_id`)
+                  ON DELETE NO ACTION
+                  ON UPDATE NO ACTION,
+                CONSTRAINT `fk_pricing_snapshot_source_service1`
+                  FOREIGN KEY (`source_external_service_id`)
+                  REFERENCES `${environment-schema}`.`external_service` (`external_service_id`)
+                  ON DELETE NO ACTION
+                  ON UPDATE NO ACTION)
+              ENGINE = InnoDB
+              COMMENT = 'Header for a captured marketplace pricing source snapshot, grouping comparable listings returned by one pricing crawl.';
+
+
+              -- -----------------------------------------------------
+              -- Table `${environment-schema}`.`pricing_snapshot_listing`
+              -- -----------------------------------------------------
+              CREATE TABLE IF NOT EXISTS `${environment-schema}`.`pricing_snapshot_listing` (
+                `pricing_snapshot_listing_id` BIGINT NOT NULL AUTO_INCREMENT COMMENT 'Surrogate primary key for the captured comparable listing.',
+                `pricing_snapshot_id` BIGINT NOT NULL COMMENT 'Pricing snapshot that owns this comparable listing row.',
+                `external_listing_id` VARCHAR(255) NULL COMMENT 'Marketplace-native listing identifier for the comparable listing, when available.',
+                `seller_name` VARCHAR(255) NULL COMMENT 'Marketplace seller display name for the comparable listing, when available.',
+                `seller_country_code` VARCHAR(8) NULL COMMENT 'Seller country code for geographic filtering and domestic-versus-international comparisons.',
+                `item_condition_code` VARCHAR(32) NULL COMMENT 'Source item condition code reported for the comparable listing, such as New or Used.',
+                `completeness_code` VARCHAR(64) NULL COMMENT 'Source completeness or sub-condition reported for the comparable listing.',
+                `quantity_available` INT NULL COMMENT 'Quantity available on the comparable marketplace listing.',
+                `unit_price` DECIMAL(12,2) NOT NULL COMMENT 'Comparable listing unit price in the captured listing currency.',
+                `currency_code` VARCHAR(8) NOT NULL COMMENT 'Currency code for the comparable listing unit price.',
+                `description` TEXT NULL COMMENT 'Buyer-facing source listing description captured for this comparable listing, when available.',
+                `extended_description` TEXT NULL COMMENT 'Additional source listing description captured for this comparable listing, when available.',
+                `source_listing_payload` TEXT NULL COMMENT 'Serialized source payload fragment for this comparable listing to support audit and parser changes.',
+                `created_at` DATETIME NOT NULL COMMENT 'Timestamp when the comparable listing row was created.',
+                PRIMARY KEY (`pricing_snapshot_listing_id`),
+                INDEX `idx_pricing_snapshot_listing_snapshot` (`pricing_snapshot_id` ASC) VISIBLE,
+                CONSTRAINT `fk_pricing_snapshot_listing_snapshot1`
+                  FOREIGN KEY (`pricing_snapshot_id`)
+                  REFERENCES `${environment-schema}`.`pricing_snapshot` (`pricing_snapshot_id`)
+                  ON DELETE NO ACTION
+                  ON UPDATE NO ACTION)
+              ENGINE = InnoDB
+              COMMENT = 'Comparable marketplace listing captured within a pricing snapshot and used as pricing algorithm input.';
+
+
+              -- -----------------------------------------------------
+              -- Table `${environment-schema}`.`pricing_decision`
+              -- -----------------------------------------------------
+              CREATE TABLE IF NOT EXISTS `${environment-schema}`.`pricing_decision` (
+                `pricing_decision_id` BIGINT NOT NULL AUTO_INCREMENT COMMENT 'Surrogate primary key for the pricing decision.',
+                `marketplace_listing_id` INT NOT NULL COMMENT 'Marketplace listing for which a price was computed or selected.',
+                `pricing_snapshot_id` BIGINT NULL COMMENT 'Pricing snapshot used as the primary source for this decision, when one was available.',
+                `algorithm_version` VARCHAR(64) NOT NULL COMMENT 'Version identifier for the pricing algorithm that produced this decision.',
+                `decision_status_code` VARCHAR(32) NOT NULL COMMENT 'Lifecycle status of the decision, such as proposed, approved, applied, rejected, or superseded.',
+                `reason_code` VARCHAR(64) NOT NULL COMMENT 'Primary branch or explanation code for the decision, such as fixed price override or insufficient data.',
+                `strategy_code` VARCHAR(64) NULL COMMENT 'Pricing strategy applied for this decision, such as competitive, move quickly, or fixed price.',
+                `computed_price` DECIMAL(12,2) NULL COMMENT 'Raw price produced by the algorithm before overrides, clamps, or final selection.',
+                `final_price` DECIMAL(12,2) NULL COMMENT 'Final price selected for the marketplace listing after overrides, clamps, or manual rules.',
+                `previous_price` DECIMAL(12,2) NULL COMMENT 'Marketplace listing unit price before this decision is applied.',
+                `currency_code` VARCHAR(8) NOT NULL COMMENT 'Currency code for computed, final, and previous price values.',
+                `comparable_count` INT NULL COMMENT 'Number of comparable listings considered by the algorithm for this decision.',
+                `confidence` DECIMAL(5,4) NULL COMMENT 'Algorithm confidence score for the decision, when computed.',
+                `source_summary_json` TEXT NULL COMMENT 'Serialized summary of the source snapshot and relevant comparable inputs used for audit.',
+                `notes` TEXT NULL COMMENT 'Human-readable notes or additional explanation for the pricing decision.',
+                `applied_at` DATETIME NULL COMMENT 'Timestamp when this decision was applied to the marketplace listing price.',
+                `created_at` DATETIME NOT NULL COMMENT 'Timestamp when the pricing decision row was created.',
+                PRIMARY KEY (`pricing_decision_id`),
+                INDEX `idx_pricing_decision_listing` (`marketplace_listing_id` ASC, `created_at` ASC) VISIBLE,
+                INDEX `idx_pricing_decision_status` (`decision_status_code` ASC) VISIBLE,
+                INDEX `idx_pricing_decision_reason` (`reason_code` ASC) VISIBLE,
+                CONSTRAINT `fk_pricing_decision_marketplace_listing1`
+                  FOREIGN KEY (`marketplace_listing_id`)
+                  REFERENCES `${environment-schema}`.`marketplace_listing` (`marketplace_listing_id`)
+                  ON DELETE NO ACTION
+                  ON UPDATE NO ACTION,
+                CONSTRAINT `fk_pricing_decision_snapshot1`
+                  FOREIGN KEY (`pricing_snapshot_id`)
+                  REFERENCES `${environment-schema}`.`pricing_snapshot` (`pricing_snapshot_id`)
+                  ON DELETE NO ACTION
+                  ON UPDATE NO ACTION)
+              ENGINE = InnoDB
+              COMMENT = 'Auditable pricing recommendation and final price decision for a marketplace listing produced by a versioned algorithm.';
+
+
+              -- -----------------------------------------------------
+              -- Table `${environment-schema}`.`pricing_apply_readiness`
+              -- -----------------------------------------------------
+              CREATE TABLE IF NOT EXISTS `${environment-schema}`.`pricing_apply_readiness` (
+                `pricing_apply_readiness_id` BIGINT NOT NULL AUTO_INCREMENT COMMENT 'Surrogate primary key for the persisted apply-readiness evaluation.',
+                `marketplace_listing_id` INT NOT NULL COMMENT 'Marketplace listing whose latest pricing decision was evaluated for possible price application.',
+                `pricing_decision_id` BIGINT NOT NULL COMMENT 'Pricing decision evaluated by the apply-readiness process; one readiness row is retained per decision.',
+                `pricing_snapshot_id` BIGINT NULL COMMENT 'Pricing snapshot that supplied comparable data for the evaluated decision, when one exists.',
+                `readiness_status_code` VARCHAR(64) NOT NULL COMMENT 'Overall apply-readiness result, such as READY_TO_APPLY or a BLOCKED_* status explaining why the price should not be applied.',
+                `block_reason_code` VARCHAR(64) NULL COMMENT 'Specific guardrail or lifecycle reason that blocked price application, such as BELOW_MINIMUM_DELTA_PERCENT or STALE_DECISION.',
+                `current_price` DECIMAL(12,2) NULL COMMENT 'Marketplace listing unit price observed when readiness was evaluated.',
+                `proposed_price` DECIMAL(12,2) NULL COMMENT 'Final price from the pricing decision that would be applied if the readiness result is approved in a future phase.',
+                `delta_amount` DECIMAL(12,2) NULL COMMENT 'Absolute currency movement between current_price and proposed_price at evaluation time.',
+                `delta_percent` DECIMAL(8,6) NULL COMMENT 'Relative movement between current_price and proposed_price at evaluation time, represented as a decimal percent such as 0.020000 for 2 percent.',
+                `minimum_required_delta` DECIMAL(12,2) NULL COMMENT 'Configured minimum currency movement required for application after rounding the configured percent threshold up to the penny.',
+                `currency_code` VARCHAR(8) NOT NULL COMMENT 'Currency code used for current_price, proposed_price, and delta values.',
+                `confidence` DECIMAL(5,4) NULL COMMENT 'Pricing decision confidence value copied into readiness for review and filtering.',
+                `comparable_count` INT NULL COMMENT 'Number of comparable listings used by the pricing decision and considered by readiness guardrails.',
+                `evaluated_at` DATETIME NOT NULL COMMENT 'Timestamp when the apply-readiness service evaluated this pricing decision.',
+                `created_at` DATETIME NOT NULL COMMENT 'Timestamp when this apply-readiness row was first created.',
+                `updated_at` DATETIME NOT NULL COMMENT 'Timestamp when this apply-readiness row was last updated by a readiness re-evaluation.',
+                PRIMARY KEY (`pricing_apply_readiness_id`),
+                INDEX `idx_pricing_apply_readiness_listing_status` (`marketplace_listing_id` ASC, `readiness_status_code` ASC) VISIBLE,
+                UNIQUE INDEX `uq_pricing_apply_readiness_decision` (`pricing_decision_id` ASC) VISIBLE,
+                INDEX `idx_pricing_apply_readiness_snapshot` (`pricing_snapshot_id` ASC) VISIBLE,
+                INDEX `idx_pricing_apply_readiness_block_reason` (`block_reason_code` ASC) VISIBLE,
+                INDEX `idx_pricing_apply_readiness_evaluated_at` (`evaluated_at` ASC) VISIBLE,
+                CONSTRAINT `fk_pricing_apply_readiness_marketplace_listing1`
+                  FOREIGN KEY (`marketplace_listing_id`)
+                  REFERENCES `${environment-schema}`.`marketplace_listing` (`marketplace_listing_id`)
+                  ON DELETE NO ACTION
+                  ON UPDATE NO ACTION,
+                CONSTRAINT `fk_pricing_apply_readiness_pricing_decision1`
+                  FOREIGN KEY (`pricing_decision_id`)
+                  REFERENCES `${environment-schema}`.`pricing_decision` (`pricing_decision_id`)
+                  ON DELETE NO ACTION
+                  ON UPDATE NO ACTION,
+                CONSTRAINT `fk_pricing_apply_readiness_pricing_snapshot1`
+                  FOREIGN KEY (`pricing_snapshot_id`)
+                  REFERENCES `${environment-schema}`.`pricing_snapshot` (`pricing_snapshot_id`)
+                  ON DELETE NO ACTION
+                  ON UPDATE NO ACTION)
+              ENGINE = InnoDB
+              COMMENT = 'Durable apply-readiness evaluation for a pricing decision. The table records whether a computed pricing decision is ready for a future price application phase or why it is blocked, including the current/proposed price movement, guardrail context, confidence, comparable count, and source snapshot used for review. Phase 9 keeps this data read-only and does not mutate marketplace listing prices or trigger external marketplace sync.';
+
+
+              -- -----------------------------------------------------
+              -- Table `${environment-schema}`.`marketplace_listing_sync_request`
+              -- -----------------------------------------------------
+              CREATE TABLE IF NOT EXISTS `${environment-schema}`.`marketplace_listing_sync_request` (
+                `marketplace_listing_sync_request_id` BIGINT NOT NULL AUTO_INCREMENT COMMENT 'Surrogate primary key for the outbound marketplace listing sync request.',
+                `marketplace_listing_id` INT NOT NULL COMMENT 'Marketplace listing whose local state changed and requires outbound marketplace synchronization.',
+                `listing_external_service_id` INT NOT NULL COMMENT 'External marketplace service that owns the remote listing to be synchronized.',
+                `pricing_decision_id` BIGINT NULL DEFAULT NULL COMMENT 'Pricing decision that caused this sync request, when the request originated from Pricing Plane price application.',
+                `pricing_apply_readiness_id` BIGINT NULL DEFAULT NULL COMMENT 'Apply-readiness evaluation that authorized or explained the price application tied to this sync request.',
+                `sync_request_type_code` VARCHAR(64) NOT NULL COMMENT 'Type of outbound listing sync requested, such as PRICE_UPDATE.',
+                `sync_request_status_code` VARCHAR(64) NOT NULL COMMENT 'Lifecycle state of the outbound sync request, such as PENDING, CLAIMED, SUCCEEDED, FAILED_RETRYABLE, FAILED_TERMINAL, SKIPPED, or BLOCKED_NON_PROD_SAFETY.',
+                `sync_reason_code` VARCHAR(64) NOT NULL COMMENT 'Business reason this sync request was created, such as PRICING_DECISION_APPLIED.',
+                `previous_unit_price` DECIMAL(12,2) NULL DEFAULT NULL COMMENT 'Marketplace listing unit price observed immediately before local price application.',
+                `requested_unit_price` DECIMAL(12,2) NULL DEFAULT NULL COMMENT 'Unit price requested for the marketplace listing after local price application and for outbound marketplace synchronization.',
+                `currency_code` VARCHAR(8) NULL DEFAULT NULL COMMENT 'Currency code for the previous and requested unit prices.',
+                `remote_inventory_id` VARCHAR(100) NULL DEFAULT NULL COMMENT 'Marketplace-specific remote inventory or listing identifier targeted by the sync request.',
+                `remote_visibility_scope_code` VARCHAR(64) NULL DEFAULT NULL COMMENT 'Marketplace-neutral visibility scope observed or required for the remote listing, such as PUBLIC, STOCK_ROOM, DRAFT, or ACTIVE_LISTING.',
+                `remote_visibility_container_id` VARCHAR(100) NULL DEFAULT NULL COMMENT 'Marketplace-neutral identifier of the remote visibility container, such as a BrickLink stockroom id.',
+                `remote_is_publicly_available` TINYINT NULL DEFAULT NULL COMMENT 'Whether the remote marketplace listing was observed or expected to be publicly available to buyers when safety checks ran.',
+                `environment_code` VARCHAR(32) NULL DEFAULT NULL COMMENT 'Runtime environment code that created or evaluated this sync request, such as sandbox, dev, or prod.',
+                `created_by_job_name` VARCHAR(100) NULL DEFAULT NULL COMMENT 'Application job or command that created this sync request.',
+                `last_error_message` TEXT NULL DEFAULT NULL COMMENT 'Latest human-readable error or blocking message produced while applying locally or syncing to the remote marketplace.',
+                `attempt_count` INT NOT NULL DEFAULT 0 COMMENT 'Number of outbound sync attempts already made for this request.',
+                `max_attempts` INT NOT NULL DEFAULT 3 COMMENT 'Maximum outbound sync attempts allowed before the request is terminally failed.',
+                `next_attempt_at` DATETIME NOT NULL COMMENT 'Earliest timestamp when this request may be claimed for outbound marketplace sync processing.',
+                `claimed_at` DATETIME NULL DEFAULT NULL COMMENT 'Timestamp when a worker claimed this request for outbound sync processing.',
+                `applied_local_at` DATETIME NULL DEFAULT NULL COMMENT 'Timestamp when the local marketplace listing mutation was successfully applied before outbound sync.',
+                `completed_at` DATETIME NULL DEFAULT NULL COMMENT 'Timestamp when outbound marketplace sync processing reached a successful, skipped, blocked, or terminal failure state.',
+                `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'Timestamp when this sync request row was created.',
+                `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT 'Timestamp when this sync request row was last updated.',
+                PRIMARY KEY (`marketplace_listing_sync_request_id`),
+                INDEX `idx_marketplace_listing_sync_request_status_due` (`sync_request_status_code` ASC, `next_attempt_at` ASC) VISIBLE,
+                INDEX `idx_marketplace_listing_sync_request_listing` (`marketplace_listing_id` ASC) VISIBLE,
+                INDEX `idx_marketplace_listing_sync_request_service` (`listing_external_service_id` ASC) VISIBLE,
+                INDEX `idx_marketplace_listing_sync_request_decision` (`pricing_decision_id` ASC) VISIBLE,
+                INDEX `idx_marketplace_listing_sync_request_readiness` (`pricing_apply_readiness_id` ASC) VISIBLE,
+                UNIQUE INDEX `uq_marketplace_listing_sync_request_decision_type` (`marketplace_listing_id` ASC, `pricing_decision_id` ASC, `sync_request_type_code` ASC) VISIBLE,
+                CONSTRAINT `fk_marketplace_listing_sync_request_marketplace_listing1`
+                  FOREIGN KEY (`marketplace_listing_id`)
+                  REFERENCES `${environment-schema}`.`marketplace_listing` (`marketplace_listing_id`)
+                  ON DELETE NO ACTION
+                  ON UPDATE NO ACTION,
+                CONSTRAINT `fk_marketplace_listing_sync_request_external_service1`
+                  FOREIGN KEY (`listing_external_service_id`)
+                  REFERENCES `${environment-schema}`.`external_service` (`external_service_id`)
+                  ON DELETE NO ACTION
+                  ON UPDATE NO ACTION,
+                CONSTRAINT `fk_marketplace_listing_sync_request_pricing_decision1`
+                  FOREIGN KEY (`pricing_decision_id`)
+                  REFERENCES `${environment-schema}`.`pricing_decision` (`pricing_decision_id`)
+                  ON DELETE NO ACTION
+                  ON UPDATE NO ACTION,
+                CONSTRAINT `fk_marketplace_listing_sync_request_apply_readiness1`
+                  FOREIGN KEY (`pricing_apply_readiness_id`)
+                  REFERENCES `${environment-schema}`.`pricing_apply_readiness` (`pricing_apply_readiness_id`)
+                  ON DELETE NO ACTION
+                  ON UPDATE NO ACTION)
+              ENGINE = InnoDB
+              COMMENT = 'Durable, marketplace-neutral outbound listing synchronization request created after local marketplace listing mutations such as Pricing Plane price application. The table records the listing, source pricing decision/readiness context, requested price change, environment and remote visibility safety context, retry lifecycle, and final sync outcome without storing raw marketplace request or response payloads.';
+
+
+              -- -----------------------------------------------------
+              -- Table `${environment-schema}`.`party_external_identity`
+              -- -----------------------------------------------------
+              CREATE TABLE IF NOT EXISTS `${environment-schema}`.`party_external_identity` (
+                `party_external_identity_id` BIGINT NOT NULL AUTO_INCREMENT,
+                `party_id` INT NOT NULL,
+                `transaction_platform_id` INT NOT NULL,
+                `external_party_id` VARCHAR(255) NOT NULL,
+                `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (`party_external_identity_id`),
+                UNIQUE INDEX `uq_party_external_identity_platform_party` (`transaction_platform_id` ASC, `external_party_id` ASC) VISIBLE,
+                INDEX `idx_party_external_identity_party` (`party_id` ASC) VISIBLE,
+                CONSTRAINT `fk_party_external_identity_party`
+                  FOREIGN KEY (`party_id`)
+                  REFERENCES `${environment-schema}`.`party` (`party_id`),
+                CONSTRAINT `fk_party_external_identity_platform`
+                  FOREIGN KEY (`transaction_platform_id`)
+                  REFERENCES `${environment-schema}`.`transaction_platform` (`transaction_platform_id`))
+              ENGINE = InnoDB
+              COMMENT = 'Stable marketplace identity for a reusable transaction party.';
+
+
+              -- -----------------------------------------------------
+              -- Table `${environment-schema}`.`transaction_party_snapshot`
+              -- -----------------------------------------------------
+              CREATE TABLE IF NOT EXISTS `${environment-schema}`.`transaction_party_snapshot` (
+                `transaction_party_snapshot_id` BIGINT NOT NULL AUTO_INCREMENT,
+                `transaction_id` INT NOT NULL,
+                `party_id` INT NOT NULL,
+                `party_role_code` VARCHAR(16) NOT NULL,
+                `display_name` VARCHAR(255) NULL DEFAULT NULL,
+                `address1` VARCHAR(255) NULL DEFAULT NULL,
+                `address2` VARCHAR(255) NULL DEFAULT NULL,
+                `city` VARCHAR(255) NULL DEFAULT NULL,
+                `state` VARCHAR(64) NULL DEFAULT NULL,
+                `postal_code` VARCHAR(64) NULL DEFAULT NULL,
+                `country_code` VARCHAR(8) NULL DEFAULT NULL,
+                `country` VARCHAR(255) NULL DEFAULT NULL,
+                `phone` VARCHAR(64) NULL DEFAULT NULL,
+                `email` VARCHAR(255) NULL DEFAULT NULL,
+                `captured_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (`transaction_party_snapshot_id`),
+                UNIQUE INDEX `uq_transaction_party_snapshot_role` (`transaction_id` ASC, `party_role_code` ASC) VISIBLE,
+                INDEX `idx_transaction_party_snapshot_party` (`party_id` ASC) VISIBLE,
+                CONSTRAINT `fk_transaction_party_snapshot_transaction`
+                  FOREIGN KEY (`transaction_id`)
+                  REFERENCES `${environment-schema}`.`transactions` (`transaction_id`),
+                CONSTRAINT `fk_transaction_party_snapshot_party`
+                  FOREIGN KEY (`party_id`)
+                  REFERENCES `${environment-schema}`.`party` (`party_id`))
+              ENGINE = InnoDB
+              COMMENT = 'Immutable order-time contact and address snapshot for each transaction party.';
+
+
+              -- -----------------------------------------------------
+              -- Table `${environment-schema}`.`transaction_item_revenue`
+              -- -----------------------------------------------------
+              CREATE TABLE IF NOT EXISTS `${environment-schema}`.`transaction_item_revenue` (
+                `transaction_item_revenue_id` BIGINT NOT NULL AUTO_INCREMENT,
+                `transaction_item_id` INT NOT NULL,
+                `currency_code` VARCHAR(8) NOT NULL,
+                `unit_amount` DECIMAL(12,4) NOT NULL,
+                `quantity` INT NOT NULL,
+                `total_amount` DECIMAL(12,4) NOT NULL,
+                PRIMARY KEY (`transaction_item_revenue_id`),
+                UNIQUE INDEX `uq_transaction_item_revenue_item` (`transaction_item_id` ASC) VISIBLE,
+                CONSTRAINT `fk_transaction_item_revenue_item`
+                  FOREIGN KEY (`transaction_item_id`)
+                  REFERENCES `${environment-schema}`.`transaction_item` (`transaction_item_id`))
+              ENGINE = InnoDB
+              COMMENT = 'Revenue earned from a sold transaction item; intentionally separate from costs.';
+
+
+              -- -----------------------------------------------------
+              -- Table `${environment-schema}`.`item_inventory_seed_source`
+              -- -----------------------------------------------------
+              CREATE TABLE IF NOT EXISTS `${environment-schema}`.`item_inventory_seed_source` (
+                `item_inventory_id` INT NOT NULL COMMENT 'The seeded item. One source per item.',
+                `source_system` VARCHAR(32) NOT NULL COMMENT 'Where the item data was copied from, e.g. LEGO_PROD_LEGACY.',
+                `source_key` VARCHAR(64) NOT NULL COMMENT 'The item key in the source system, e.g. the legacy bricklink_inventory.bl_inventory_id.',
+                `seed_run_id` CHAR(36) NOT NULL COMMENT 'UUID of the seeding run that created the item.',
+                `seeded_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'When the item was seeded (UTC).',
+                PRIMARY KEY (`item_inventory_id`),
+                UNIQUE INDEX `uq_item_inventory_seed_source_source` (`source_system` ASC, `source_key` ASC) VISIBLE,
+                INDEX `idx_item_inventory_seed_source_run` (`seed_run_id` ASC) VISIBLE,
+                CONSTRAINT `fk_item_inventory_seed_source_item_inventory`
+                  FOREIGN KEY (`item_inventory_id`)
+                  REFERENCES `${environment-schema}`.`item_inventory` (`item_inventory_id`)
+                  ON DELETE RESTRICT
+                  ON UPDATE RESTRICT)
+              ENGINE = InnoDB
+              COMMENT = 'Provenance of items created by lower-environment seeding. Never populated in PROD.';
+
+
+              SET SQL_MODE=@OLD_SQL_MODE;
+              SET FOREIGN_KEY_CHECKS=@OLD_FOREIGN_KEY_CHECKS;
+              SET UNIQUE_CHECKS=@OLD_UNIQUE_CHECKS;
