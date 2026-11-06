@@ -4,6 +4,7 @@ import liquibase.integration.spring.SpringLiquibase;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.autoconfigure.liquibase.LiquibaseProperties;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -17,18 +18,22 @@ import javax.sql.DataSource;
 public class LiquibaseConfiguration {
     private static final Logger log = LoggerFactory.getLogger(LiquibaseConfiguration.class);
 
+    static final String CHANGE_LOG = "classpath:/db/changelog/db.changelog-master.yaml";
+
     @Bean
     @ConditionalOnProperty(prefix = "spring.liquibase", name = "enabled", havingValue = "true", matchIfMissing = true)
-    public SpringLiquibase liquibase(@Qualifier("targetDataSource") final DataSource targetDataSource, final LiquibaseProperties liquibaseProperties) throws Exception {
-        log.info("Configuring Liquibase with DataSource [{}]", targetDataSource.getConnection().getMetaData().getURL());
-        log.info("Liquibase parameters [{}]", liquibaseProperties.getParameters());
-        if (targetDataSource.getConnection().getMetaData().getURL().contains("_dev_lego")) {
-            throw new IllegalStateException("ABORTING : Target DataSource is _dev_lego");
-        }
-        SpringLiquibase liquibase = new SpringLiquibase();
+    public SpringLiquibase liquibase(@Qualifier("targetDataSource") final DataSource targetDataSource,
+                                     final LiquibaseProperties liquibaseProperties,
+                                     @Value("${deployer.mode:UPDATE}") final DeployerMode mode) throws Exception {
+        String environmentSchema = liquibaseProperties.getParameters() == null
+                ? null : liquibaseProperties.getParameters().get("environment-schema");
+        String schema = TargetSchemaGuard.verify(targetDataSource, environmentSchema);
+        log.info("Deployer mode [{}] on schema [{}], parameters {}", mode, schema, liquibaseProperties.getParameters());
+
+        DeployerLiquibase liquibase = new DeployerLiquibase(mode);
         liquibase.setDataSource(targetDataSource);
         liquibase.setChangeLogParameters(liquibaseProperties.getParameters());
-        liquibase.setChangeLog("classpath:/db/changelog/db.changelog-master.yaml");
+        liquibase.setChangeLog(CHANGE_LOG);
         return liquibase;
     }
 }

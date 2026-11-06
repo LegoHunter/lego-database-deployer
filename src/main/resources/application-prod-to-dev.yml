@@ -1,8 +1,0 @@
-spring:
-  liquibase:
-    parameters:
-      environment-schema: lego_dev
-
-target-database:
-  datasource:
-    database-key-name: rasppi5-01-lego-dev

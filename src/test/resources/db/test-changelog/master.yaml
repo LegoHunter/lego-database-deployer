@@ -1,0 +1,17 @@
+databaseChangeLog:
+  - changeSet:
+      id: test-baseline
+      author: test
+      preConditions:
+        - onFail: HALT
+        - onFailMessage: "item_inventory already exists: this schema is already built. Use deployer.mode=CHANGELOG_SYNC, never UPDATE."
+        - not:
+            - tableExists:
+                tableName: item_inventory
+      changes:
+        - createTable:
+            tableName: item_inventory
+            columns:
+              - column:
+                  name: item_inventory_id
+                  type: INT

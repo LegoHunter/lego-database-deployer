@@ -1,40 +1,52 @@
 # lego-database-deployer
-Lego MySQL Database Deployer via Liquibase
 
-## Current Schema Notes
+Liquibase deployer for the LCMS MySQL schemas (`lego_sandbox`, `lego_dev`, and later `lego_prod`). It is
+the authoritative history of schema changes. `lego-data-model` (Workbench) and the `lego-data` H2 test
+schema follow it.
 
-- `marketplace_listing.unit_price` is nullable. A local non-fixed `DRAFT` may enter Pricing Plane onboarding without a seed price; the Pricing Plane must apply a positive initial price before a BrickLink `LISTING_CREATE` request is sent.
-- Existing environments receive this change through `1.0.3-marketplace-listing-unit-price-nullable.yaml`; fresh databases receive the nullable definition from `1.0.0-gen-2-db-initialize.yaml`.
+## Changelog
 
-## BrickLink SET color repair
+- `db/changelog/files/2.0.0-baseline.yaml` is the starting schema: the whole Workbench model,
+  forward-engineered on 2026-11-05 (52 tables). It replaced changesets 1.0.0–1.2.0, which no longer
+  matched the databases (HOMELAB-46).
+  - It has no DROP statements.
+  - It halts on any schema that already has `item_inventory`.
+- Every later change is a **new file** in `db/changelog/files/`, picked up by `includeAll` in file-name
+  order. Name it `<version>-<slug>.yaml`, qualify objects with `${environment-schema}`, and give it
+  preconditions and a rollback.
+- **Never edit a changeset that has already run anywhere.** Liquibase stores each changeset's checksum and
+  refuses a changed file. Write a new changeset instead.
+- The changelog creates structure only; it loads no reference or lookup data.
 
-Change set `1.0.2-bricklink-set-color-not-applicable` repairs existing BrickLink SET marketplace drafts whose
-`color_id` is null. BrickLink requires SET inventory creates to send `color_id=0` (Not Applicable). The change is
-idempotent and intentionally leaves all other item types unchanged.
+## Running it
 
-Deploy this database change after the shared `lego-data` color policy and before retrying failed
-`LISTING_CREATE` requests. The change set does not reset or requeue sync requests.
+Run `LegoDatabaseDeployerApplication` (IntelliJ or `mvn spring-boot:run`) with:
 
-The change set is included automatically by `db/changelog/db.changelog-master.yaml` through `includeAll`. Confirm
-the repair query is empty before retrying a failed SET request; terminal sync requests require an explicit operator
-reset or recreation through the normal workflow.
+- **Profile:** `sandbox` (schema `lego_sandbox`) or `dev` (schema `lego_dev`). The database
+  connection comes from `/dev/config/database-configuration.yml` (`database-key-name`).
+- **`deployer.mode`:**
+  - `UPDATE` (default): apply pending changesets.
+  - `STATUS`: validate checksums and log pending changesets; applies nothing. Run it before every
+    `UPDATE`.
+  - `CHANGELOG_SYNC`: record pending changesets as applied **without running them**. Use it only to bring
+    an existing, already-correct schema under Liquibase.
 
-## Current Schema Notes
+The run is refused unless the connection's schema (`SELECT DATABASE()`) equals the profile's
+`environment-schema`. It is always refused for `lego_prod_legacy`.
 
-- `bricklink_marketplace_listing.stock_room_id` is nullable. Production BrickLink inventory can be publicly visible only when it is not assigned to a stockroom; sandbox and dev guardrails are enforced by application safety checks and configured stockroom values, not by a database `NOT NULL` constraint.
+## Making a schema change
 
-Edit postprocessors in `application.yml`:
+1. Add a new changeset file here.
+2. Make the same change in `lego-data-model` (Workbench) and in the `lego-data` H2 schema and mappings.
+3. Run `STATUS`, then `UPDATE`, against `sandbox`. Then do the same for `dev` when DEV is in use.
 
-```yaml
-postprocessors:
-    groups:
-        migration-1.0-to-2.0:
-        - InitialMigrationPostProcessor
-        - CategoryMigrator
-        - ConditionMigrator
-        - TransactionTypeMigrator
-        - CarrierMigrator
-        - TransactionPlatformMigrator
-        - CostTypeMigrator
-        - PartyMigrator
-```
+## Current schema notes
+
+- `marketplace_listing.unit_price` is nullable. A local non-fixed `DRAFT` may enter Pricing Plane
+  onboarding without a price; the Pricing Plane applies a positive initial price before a BrickLink
+  `LISTING_CREATE`.
+- `bricklink_marketplace_listing.stock_room_id` is nullable. PROD lots are public only when they are not in
+  a stockroom. SANDBOX and DEV are kept in their own stockrooms by application checks, not by a `NOT NULL`
+  constraint.
+- `item_inventory_seed_source` records where lower-environment seeded items came from (HOMELAB-40). PROD
+  never holds rows.
