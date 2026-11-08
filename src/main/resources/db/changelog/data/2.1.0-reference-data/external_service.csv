@@ -1,0 +1,11 @@
+external_service_id,service_code,display_name,service_url,external_service_type_id
+1,LEGO,LEGO,https://www.lego.com,1
+2,BRICKLINK,BrickLink,https://www.bricklink.com,2
+3,EBAY,eBay,https://www.ebay.com,3
+4,CATAWIKI,CataWiki,https://www.catawiki.com,3
+5,LAURITZ,Lauritz,https://www.lauritz.com,3
+6,QXL,QXL,https://www.qxl.dk,3
+7,PNW_STEAM_SHOP,PNW Steam Shop,https://www.pnwsteamshop.com,4
+8,BRICK_MODEL_RAILROADER,Brick Model Railroader,https://brickmodelrailroader.com,4
+9,REBRICKABLE,Rebrickable,https://rebrickable.com,2
+10,FLICKR,Flickr,https://www.flickr.com,5

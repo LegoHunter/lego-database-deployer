@@ -1,0 +1,11 @@
+transaction_type_code,transaction_type_description,conversion_factor
+A,Auction Purchase,1
+B,Built from Loose Pieces,1
+F,Find,1
+G,Gift,1
+P,Purchase,1
+RM,Removed,-1
+S,Sale,-1
+TG,Trade Give,-1
+TR,Trade Receive,1
+YS,Yard Sale/Flea Market Purchase,1

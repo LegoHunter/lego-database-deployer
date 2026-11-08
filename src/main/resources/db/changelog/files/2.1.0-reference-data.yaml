@@ -1,0 +1,100 @@
+# Reference (lookup) data every LCMS environment needs (HOMELAB-57; HOMELAB-56 reuses it for lego_prod).
+#
+# 2.0.0-baseline creates the tables but loads no rows, so a new database (lego_dev, lego_prod) had
+# empty lookup tables and the services could do nothing useful. This changeset loads them.
+#
+# Source: lego_sandbox on 2026-11-08 (the system of record for the model), exported to the CSVs in
+# ../data/2.1.0-reference-data/. Cross-checked against lego-data's H2 test lookup data
+# (current_lookup_data.sql): the same rows in all 11 tables.
+#
+# loadUpdateData upserts by primary key (INSERT ... ON DUPLICATE KEY UPDATE on MySQL), so:
+#   - on an empty database (lego_dev, lego_prod) it inserts every row;
+#   - on lego_sandbox, which already holds identical rows, it changes nothing and leaves any extra
+#     rows alone.
+# Parents load before children (external_service_type -> external_service -> capability).
+#
+# Changing a value later: add a NEW changeset (e.g. 2.1.1-...) with its own CSV. Never edit these
+# CSVs once this changeset has run anywhere: Liquibase checksums the data and would halt.
+databaseChangeLog:
+  - changeSet:
+      id: 2.1.0-reference-data
+      author: tvattima
+      comment: Lookup data for every environment (HOMELAB-57).
+      changes:
+        - loadUpdateData:
+            tableName: external_service_type
+            primaryKey: external_service_type_id
+            file: ../data/2.1.0-reference-data/external_service_type.csv
+            relativeToChangelogFile: true
+            separator: ','
+            encoding: UTF-8
+        - loadUpdateData:
+            tableName: external_service
+            primaryKey: external_service_id
+            file: ../data/2.1.0-reference-data/external_service.csv
+            relativeToChangelogFile: true
+            separator: ','
+            encoding: UTF-8
+        - loadUpdateData:
+            tableName: external_service_capability
+            primaryKey: external_service_id,capability_code
+            file: ../data/2.1.0-reference-data/external_service_capability.csv
+            relativeToChangelogFile: true
+            separator: ','
+            encoding: UTF-8
+        - loadUpdateData:
+            tableName: condition
+            primaryKey: condition_id
+            file: ../data/2.1.0-reference-data/condition.csv
+            relativeToChangelogFile: true
+            separator: ','
+            encoding: UTF-8
+        - loadUpdateData:
+            tableName: cost_type
+            primaryKey: cost_type_code
+            file: ../data/2.1.0-reference-data/cost_type.csv
+            relativeToChangelogFile: true
+            separator: ','
+            encoding: UTF-8
+        - loadUpdateData:
+            tableName: transaction_type
+            primaryKey: transaction_type_code
+            file: ../data/2.1.0-reference-data/transaction_type.csv
+            relativeToChangelogFile: true
+            separator: ','
+            encoding: UTF-8
+        - loadUpdateData:
+            tableName: transaction_platform
+            primaryKey: transaction_platform_id
+            file: ../data/2.1.0-reference-data/transaction_platform.csv
+            relativeToChangelogFile: true
+            separator: ','
+            encoding: UTF-8
+        - loadUpdateData:
+            tableName: payment_platform
+            primaryKey: payment_platform_id
+            file: ../data/2.1.0-reference-data/payment_platform.csv
+            relativeToChangelogFile: true
+            separator: ','
+            encoding: UTF-8
+        - loadUpdateData:
+            tableName: carrier
+            primaryKey: carrier_code
+            file: ../data/2.1.0-reference-data/carrier.csv
+            relativeToChangelogFile: true
+            separator: ','
+            encoding: UTF-8
+        - loadUpdateData:
+            tableName: item_inventory_sale_intent
+            primaryKey: sale_intent_code
+            file: ../data/2.1.0-reference-data/item_inventory_sale_intent.csv
+            relativeToChangelogFile: true
+            separator: ','
+            encoding: UTF-8
+        - loadUpdateData:
+            tableName: item_inventory_state
+            primaryKey: inventory_state_code
+            file: ../data/2.1.0-reference-data/item_inventory_state.csv
+            relativeToChangelogFile: true
+            separator: ','
+            encoding: UTF-8

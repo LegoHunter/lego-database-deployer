@@ -1,0 +1,4 @@
+sale_intent_code,sale_intent_name,sale_intent_description,active,sort_order
+SELLABLE,Sellable,May be listed for sale when inventory state is AVAILABLE.,1,10
+KEEP,Keep,Personal collection item that should not be listed for sale.,1,20
+UNDECIDED,Undecided,Sale intent has not been classified; item should not be listed automatically.,1,30

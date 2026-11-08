@@ -1,0 +1,12 @@
+condition_id,condition_code,condition_description,condition_text
+1,M,Mint,NULL
+2,E,Excellent,NULL
+3,VG,Very Good,NULL
+4,G,Good,NULL
+5,P,Poor,NULL
+6,NA,Not Applicable,NULL
+7,F,Fair,NULL
+8,MS,Missing,NULL
+9,CC,Color Copy,NULL
+10,BW,Black & White Copy,NULL
+11,SL,Sealed,Mint in sealed box

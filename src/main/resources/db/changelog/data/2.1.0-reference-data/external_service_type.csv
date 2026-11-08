@@ -1,0 +1,6 @@
+external_service_type_id,external_service_type_name,external_service_type_description
+1,LEGO,LEGO
+2,MARKETPLACE,Marketplace
+3,AUCTION,Auction
+4,THIRDPARTY,Third Party Producer
+5,IMAGE_HOSTING,Image Hosting Service
