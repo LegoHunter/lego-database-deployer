@@ -1,0 +1,5 @@
+carrier_code,carrier_name,tracking_url_pattern
+DHL,"Dalsey, Hillblom and Lynn",https://www.dhl.com/us-en/home/tracking.html?tracking-id=%s&submit=1
+FEDEX,Federal Express,https://www.fedex.com/fedextrack/?action=track&trackingnumber=%s
+UPS,United Parcel Service,http://wwwapps.ups.com/WebTracking/processRequest?HTMLVersion=5.0&Requester=NES&AgreeToTermsAndConditions=yes&loc=en_US&tracknum=%s
+USPS,United States Postal Service,https://tools.usps.com/go/TrackConfirmAction.action?tLabels=%s

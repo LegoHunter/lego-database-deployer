@@ -1,0 +1,6 @@
+inventory_state_code,inventory_state_name,inventory_state_description,active,sort_order
+AVAILABLE,Available,Owned item is available for normal inventory workflows and may be listed when sale intent allows it.,1,10
+RESERVED_FOR_ORDER,Reserved for Order,Owned item is temporarily reserved for an external marketplace order and should not be listed again.,1,20
+SOLD,Sold,Owned item has been sold and should not be listed.,1,30
+REMOVED,Removed,Owned item has been intentionally removed from the collection outside a marketplace sale.,1,40
+LOST,Lost,Owned item cannot currently be located and should not be listed.,1,50

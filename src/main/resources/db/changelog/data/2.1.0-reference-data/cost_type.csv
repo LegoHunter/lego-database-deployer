@@ -1,0 +1,7 @@
+cost_type_code,cost_type_name,cost_type_description
+DISCOUNT,Discount,A Discount added to an item or entire order
+FEE,Fee,A fee added to an item or entire order
+INSURANCE,Insurance,The cost for insurance to ship an item or an entire order
+PRICE,Price,The for-sale price or purchase cost of an item
+SHIPPING,Shipping,The cost of shipping an item or an entire order
+TAX,Tax,The sales tax amount added to an item or entire order

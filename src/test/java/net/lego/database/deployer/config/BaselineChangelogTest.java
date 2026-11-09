@@ -26,16 +26,16 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * Checks the real changelog: exactly one starting changeset, its guard, and how Liquibase splits
- * its SQL. The SQL itself is MySQL-only and is proven by building lego_dev (HOMELAB-46).
+ * Checks the real changelog: the starting changeset, its guard, and how Liquibase splits its SQL;
+ * then the reference data (HOMELAB-57). The SQL itself is MySQL-only and is proven by building lego_dev (HOMELAB-46).
  */
 class BaselineChangelogTest {
 
     private static final String MASTER = "db/changelog/db.changelog-master.yaml";
 
     @Test
-    void changelogHoldsOnlyTheStartingChangeset() throws Exception {
-        assertThat(changeSets()).extracting(ChangeSet::getId).containsExactly("2.0.0-baseline");
+    void changelogHoldsTheBaselineThenTheReferenceData() throws Exception {
+        assertThat(changeSets()).extracting(ChangeSet::getId).containsExactly("2.0.0-baseline", "2.1.0-reference-data");
     }
 
     @Test
@@ -105,8 +105,11 @@ class BaselineChangelogTest {
         try (Connection connection = dataSource.getConnection();
              Statement statement = connection.createStatement();
              ResultSet resultSet = statement.executeQuery("SELECT ID, EXECTYPE FROM DATABASECHANGELOG")) {
+            // CHANGELOG_SYNC records every changeset without running it, the reference data included.
             assertThat(resultSet.next()).isTrue();
             assertThat(resultSet.getString(1) + ":" + resultSet.getString(2)).isEqualTo("2.0.0-baseline:EXECUTED");
+            assertThat(resultSet.next()).isTrue();
+            assertThat(resultSet.getString(1) + ":" + resultSet.getString(2)).isEqualTo("2.1.0-reference-data:EXECUTED");
             assertThat(resultSet.next()).isFalse();
         }
     }

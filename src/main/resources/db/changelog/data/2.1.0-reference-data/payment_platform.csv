@@ -1,0 +1,3 @@
+payment_platform_id,payment_platform_name,payment_platform_url
+1,PayPal,https://www.paypal.com/
+2,Credit Card,NULL
