@@ -14,7 +14,7 @@ import java.util.Set;
  * <p>The changelog qualifies every object with {@code ${environment-schema}}, while Liquibase keeps
  * its tracking tables in the connection's default schema. If the two differ, Liquibase would record
  * changes in one schema and make them in another. The guard also refuses the legacy PROD database,
- * which this deployer never manages.
+ * which this deployer never manages, and a schema that belongs to the other {@link DeployerChangelog}.
  */
 public final class TargetSchemaGuard {
 
@@ -24,8 +24,12 @@ public final class TargetSchemaGuard {
     }
 
     public static String verify(DataSource dataSource, String environmentSchema) throws SQLException {
-        if (environmentSchema == null || environmentSchema.isBlank()) {
-            throw new IllegalStateException("spring.liquibase.parameters.environment-schema is not set");
+        return verify(dataSource, DeployerChangelog.ENVIRONMENT, environmentSchema);
+    }
+
+    public static String verify(DataSource dataSource, DeployerChangelog changelog, String targetSchema) throws SQLException {
+        if (targetSchema == null || targetSchema.isBlank()) {
+            throw new IllegalStateException("spring.liquibase.parameters." + changelog.getSchemaParameter() + " is not set");
         }
         String connected;
         try (Connection connection = dataSource.getConnection();
@@ -33,17 +37,22 @@ public final class TargetSchemaGuard {
              ResultSet resultSet = statement.executeQuery("SELECT DATABASE()")) {
             connected = resultSet.next() ? resultSet.getString(1) : null;
         }
-        return check(connected, environmentSchema);
+        return check(changelog, connected, targetSchema);
     }
 
     static String check(String connectedSchema, String environmentSchema) {
-        String expected = environmentSchema.trim().toLowerCase(Locale.ROOT);
+        return check(DeployerChangelog.ENVIRONMENT, connectedSchema, environmentSchema);
+    }
+
+    static String check(DeployerChangelog changelog, String connectedSchema, String targetSchema) {
+        String parameter = changelog.getSchemaParameter();
+        String expected = targetSchema.trim().toLowerCase(Locale.ROOT);
         if (NEVER_MANAGED.contains(expected)) {
-            throw new IllegalStateException("ABORTING: the deployer never manages " + environmentSchema);
+            throw new IllegalStateException("ABORTING: the deployer never manages " + targetSchema);
         }
         if (connectedSchema == null) {
             throw new IllegalStateException("ABORTING: the target connection has no default schema; expected "
-                    + environmentSchema);
+                    + targetSchema);
         }
         String connected = connectedSchema.trim().toLowerCase(Locale.ROOT);
         if (NEVER_MANAGED.contains(connected)) {
@@ -52,7 +61,11 @@ public final class TargetSchemaGuard {
         }
         if (!connected.equals(expected)) {
             throw new IllegalStateException("ABORTING: the target connection is schema " + connectedSchema
-                    + " but environment-schema is " + environmentSchema);
+                    + " but " + parameter + " is " + targetSchema);
+        }
+        if (!changelog.accepts(connected)) {
+            throw new IllegalStateException("ABORTING: the " + changelog + " changelog does not build schema "
+                    + connectedSchema);
         }
         return connected;
     }

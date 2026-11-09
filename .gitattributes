@@ -1,3 +1,4 @@
 # Changelog files are checksummed by Liquibase once they run. Keep them byte-identical on every
 # checkout (Windows included) so a run from any machine sees the same files (HOMELAB-57).
 src/main/resources/db/changelog/** text eol=lf
+src/main/resources/db/marketplace-pricing/** text eol=lf

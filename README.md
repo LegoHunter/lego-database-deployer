@@ -1,7 +1,8 @@
 # lego-database-deployer
 
-Liquibase deployer for the LCMS MySQL schemas (`lego_sandbox`, `lego_dev`, and later `lego_prod`). It is
-the authoritative history of schema changes. `lego-data-model` (Workbench) and the `lego-data` H2 test
+Liquibase deployer for the LCMS MySQL schemas: the environment schemas (`lego_sandbox`, `lego_dev`, and
+later `lego_prod`) and the shared `marketplace_pricing` schema. It is the authoritative history of schema
+changes. `lego-data-model` (Workbench) and the `lego-data` H2 test
 schema follow it.
 
 ## Changelog
@@ -16,14 +17,34 @@ schema follow it.
   preconditions and a rollback.
 - **Never edit a changeset that has already run anywhere.** Liquibase stores each changeset's checksum and
   refuses a changed file. Write a new changeset instead.
-- The changelog creates structure only; it loads no reference or lookup data.
+- `2.1.0-reference-data` loads the lookup tables every environment needs.
+
+## The shared pricing changelog
+
+`db/marketplace-pricing/` is a second, separate changelog for the `marketplace_pricing` schema
+(HOMELAB-31). It holds the market data every environment reads: the lots each marketplace is offering for
+an item, crawled once for all environments.
+
+- It follows the same rules: a new file per change in `db/marketplace-pricing/files/`, objects qualified
+  with `${marketplace-pricing-schema}`, never edit a changeset that has run.
+- `1.0.0-baseline` creates eight tables: `marketplace`, `canonical_item`, `marketplace_item`,
+  `want_list_item`, `crawl_target`, `crawl_attempt`, `market_snapshot` and `market_listing`. It halts on a
+  schema that already has `market_snapshot`.
+- `1.1.0-reference-data` loads the `marketplace` rows (BrickLink crawled, eBay disabled).
+- Environment schemas reference a snapshot by `market_snapshot_id` with no foreign key, because it is in
+  another schema (`2.2.0-market-snapshot-reference`).
 
 ## Running it
 
 Run `LegoDatabaseDeployerApplication` (IntelliJ or `mvn spring-boot:run`) with:
 
-- **Profile:** `sandbox` (schema `lego_sandbox`) or `dev` (schema `lego_dev`). The database
-  connection comes from `/dev/config/database-configuration.yml` (`database-key-name`).
+- **Profile:** `sandbox` (schema `lego_sandbox`) or `dev` (schema `lego_dev`) for the environment
+  changelog; `marketplace-pricing` (schema `marketplace_pricing`) or `marketplace-pricing-scratch`
+  (schema `marketplace_pricing_scratch`, for trial builds) for the shared pricing changelog. The database
+  connection comes from `/dev/config/database-configuration.yml` (`database-key-name`): the pricing
+  profiles need the keys `rasppi5-01-marketplace-pricing` and `rasppi5-01-marketplace-pricing-scratch`,
+  with a JDBC URL whose default schema is that schema.
+- **`deployer.changelog`:** `ENVIRONMENT` (default) or `MARKETPLACE_PRICING`. The pricing profiles set it.
 - **`deployer.mode`:**
   - `UPDATE` (default): apply pending changesets.
   - `STATUS`: validate checksums and log pending changesets; applies nothing. Run it before every
@@ -31,8 +52,9 @@ Run `LegoDatabaseDeployerApplication` (IntelliJ or `mvn spring-boot:run`) with:
   - `CHANGELOG_SYNC`: record pending changesets as applied **without running them**. Use it only to bring
     an existing, already-correct schema under Liquibase.
 
-The run is refused unless the connection's schema (`SELECT DATABASE()`) equals the profile's
-`environment-schema`. It is always refused for `lego_prod_legacy`.
+The run is refused unless the connection's schema (`SELECT DATABASE()`) equals the profile's schema
+parameter. The environment changelog refuses any `marketplace_pricing*` schema and the pricing changelog
+refuses every other schema. Every run is refused for `lego_prod_legacy`.
 
 ## Making a schema change
 

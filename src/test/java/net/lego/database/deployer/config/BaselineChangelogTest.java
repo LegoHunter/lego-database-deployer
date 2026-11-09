@@ -34,8 +34,9 @@ class BaselineChangelogTest {
     private static final String MASTER = "db/changelog/db.changelog-master.yaml";
 
     @Test
-    void changelogHoldsTheBaselineThenTheReferenceData() throws Exception {
-        assertThat(changeSets()).extracting(ChangeSet::getId).containsExactly("2.0.0-baseline", "2.1.0-reference-data");
+    void changelogHoldsTheBaselineThenTheReferenceDataThenTheMarketSnapshotReference() throws Exception {
+        assertThat(changeSets()).extracting(ChangeSet::getId)
+                .containsExactly("2.0.0-baseline", "2.1.0-reference-data", "2.2.0-market-snapshot-reference");
     }
 
     @Test
@@ -92,6 +93,19 @@ class BaselineChangelogTest {
     }
 
     @Test
+    void marketSnapshotReferenceOnlyAddsNullableColumnsAndCanRollBack() throws Exception {
+        ChangeSet changeSet = changeSets().get(2);
+        String sql = ((RawSQLChange) changeSet.getChanges().get(0)).getSql();
+
+        assertThat(sql).doesNotContain("lego_dev", "lego_sandbox", "lego_prod");
+        assertThat(sql).doesNotContainPattern("(?i)\bDROP\b");
+        assertThat(sql).contains("`lego_test`.`pricing_decision`", "`lego_test`.`pricing_apply_readiness`");
+        assertThat(Pattern.compile("ADD COLUMN `market_snapshot_(id|captured_at)` [A-Z]+ NULL DEFAULT NULL").matcher(sql).results())
+                .hasSize(4);
+        assertThat(changeSet.getRollback().getChanges()).hasSize(1);
+    }
+
+    @Test
     void realChangelogRefusesUpdateOnABuiltSchemaButSyncs() throws Exception {
         JdbcDataSource dataSource = new JdbcDataSource();
         dataSource.setURL("jdbc:h2:mem:baseline" + System.nanoTime() + ";DB_CLOSE_DELAY=-1");
@@ -110,6 +124,8 @@ class BaselineChangelogTest {
             assertThat(resultSet.getString(1) + ":" + resultSet.getString(2)).isEqualTo("2.0.0-baseline:EXECUTED");
             assertThat(resultSet.next()).isTrue();
             assertThat(resultSet.getString(1) + ":" + resultSet.getString(2)).isEqualTo("2.1.0-reference-data:EXECUTED");
+            assertThat(resultSet.next()).isTrue();
+            assertThat(resultSet.getString(1) + ":" + resultSet.getString(2)).isEqualTo("2.2.0-market-snapshot-reference:EXECUTED");
             assertThat(resultSet.next()).isFalse();
         }
     }
@@ -140,7 +156,7 @@ class BaselineChangelogTest {
         return changeSets().get(0).getChanges();
     }
 
-    private static int parenthesisDepth(String statement) {
+    static int parenthesisDepth(String statement) {
         int depth = 0;
         Character quote = null;
         for (char c : statement.toCharArray()) {
@@ -159,7 +175,7 @@ class BaselineChangelogTest {
         return depth;
     }
 
-    private static String firstLine(String statement) {
+    static String firstLine(String statement) {
         return statement.strip().lines().filter(line -> line.contains("CREATE TABLE")).findFirst().orElse(statement);
     }
 }

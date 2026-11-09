@@ -1,0 +1,251 @@
+databaseChangeLog:
+  - changeSet:
+      id: 1.0.0-baseline
+      author: tvattima
+      comment: >-
+        Starting schema for the shared marketplace pricing data (HOMELAB-31): what each marketplace is
+        asking for an item, crawled once and read by every LCMS environment. It has no DROP statements
+        and halts on a schema that already has market_snapshot.
+      preConditions:
+        - onFail: HALT
+        - onFailMessage: "market_snapshot already exists: this schema is already built. Use deployer.mode=CHANGELOG_SYNC, never UPDATE."
+        - not:
+            - tableExists:
+                tableName: market_snapshot
+      changes:
+        - sql:
+            dbms: mysql
+            splitStatements: true
+            stripComments: false
+            sql: |
+              CREATE SCHEMA IF NOT EXISTS `${marketplace-pricing-schema}` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci ;
+              USE `${marketplace-pricing-schema}` ;
+
+              -- -----------------------------------------------------
+              -- Table `${marketplace-pricing-schema}`.`marketplace`
+              -- -----------------------------------------------------
+              CREATE TABLE IF NOT EXISTS `${marketplace-pricing-schema}`.`marketplace` (
+                `marketplace_code` VARCHAR(32) NOT NULL COMMENT 'Stable code for the marketplace, such as BRICKLINK or EBAY.',
+                `display_name` VARCHAR(100) NOT NULL COMMENT 'Human-readable marketplace name for reports and logs.',
+                `base_url` VARCHAR(500) NULL DEFAULT NULL COMMENT 'Base public URL of the marketplace.',
+                `default_currency_code` VARCHAR(8) NOT NULL COMMENT 'Currency the crawler asks the marketplace to show prices in.',
+                `crawl_enabled` TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'Whether the pricing crawler fetches this marketplace (1) or skips it (0).',
+                `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'Timestamp when this row was created.',
+                PRIMARY KEY (`marketplace_code`))
+              ENGINE = InnoDB
+              COMMENT = 'Marketplaces whose asking prices are crawled into this schema.';
+
+
+              -- -----------------------------------------------------
+              -- Table `${marketplace-pricing-schema}`.`canonical_item`
+              -- -----------------------------------------------------
+              CREATE TABLE IF NOT EXISTS `${marketplace-pricing-schema}`.`canonical_item` (
+                `canonical_item_id` INT NOT NULL AUTO_INCREMENT COMMENT 'Surrogate primary key for the canonical item.',
+                `item_type_code` VARCHAR(8) NOT NULL COMMENT 'BrickLink catalog item type, such as S (set), G (gear) or B (book).',
+                `item_number` VARCHAR(100) NOT NULL COMMENT 'BrickLink catalog item number, such as 6390-1. With item_type_code it is the canonical identity of the item in every environment.',
+                `item_name` VARCHAR(250) NULL DEFAULT NULL COMMENT 'Catalog item name, for reports.',
+                `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'Timestamp when this row was created.',
+                `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT 'Timestamp when this row was last updated.',
+                PRIMARY KEY (`canonical_item_id`),
+                UNIQUE INDEX `uq_canonical_item_type_number` (`item_type_code` ASC, `item_number` ASC) VISIBLE)
+              ENGINE = InnoDB
+              COMMENT = 'One LEGO catalog item, identified by its BrickLink item type and number, independent of any environment or marketplace.';
+
+
+              -- -----------------------------------------------------
+              -- Table `${marketplace-pricing-schema}`.`marketplace_item`
+              -- -----------------------------------------------------
+              CREATE TABLE IF NOT EXISTS `${marketplace-pricing-schema}`.`marketplace_item` (
+                `marketplace_item_id` INT NOT NULL AUTO_INCREMENT COMMENT 'Surrogate primary key for the marketplace item mapping.',
+                `marketplace_code` VARCHAR(32) NOT NULL COMMENT 'Marketplace this mapping describes.',
+                `canonical_item_id` INT NOT NULL COMMENT 'Canonical item this mapping finds on the marketplace.',
+                `marketplace_item_key` VARCHAR(255) NULL DEFAULT NULL COMMENT 'Human-readable marketplace item key, such as the BrickLink item number. NULL when the marketplace has no catalog.',
+                `marketplace_unique_key` VARCHAR(255) NULL DEFAULT NULL COMMENT 'Marketplace internal key the crawl endpoint needs, such as the BrickLink idItem. Resolved once and reused by every environment.',
+                `search_terms` VARCHAR(500) NULL DEFAULT NULL COMMENT 'Search query used to find the item on a marketplace without a catalog, such as eBay.',
+                `match_method_code` VARCHAR(32) NOT NULL COMMENT 'How lots are matched to the item, such as CATALOG_ID (exact catalog id) or SEARCH (search terms plus matching).',
+                `resolved_at` DATETIME NULL DEFAULT NULL COMMENT 'Timestamp when marketplace_unique_key was last resolved. NULL until it has been resolved.',
+                `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'Timestamp when this row was created.',
+                `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT 'Timestamp when this row was last updated.',
+                PRIMARY KEY (`marketplace_item_id`),
+                UNIQUE INDEX `uq_marketplace_item_marketplace_item` (`marketplace_code` ASC, `canonical_item_id` ASC) VISIBLE,
+                INDEX `fk_marketplace_item_canonical_item1_idx` (`canonical_item_id` ASC) VISIBLE,
+                CONSTRAINT `fk_marketplace_item_marketplace1`
+                  FOREIGN KEY (`marketplace_code`)
+                  REFERENCES `${marketplace-pricing-schema}`.`marketplace` (`marketplace_code`)
+                  ON DELETE NO ACTION
+                  ON UPDATE NO ACTION,
+                CONSTRAINT `fk_marketplace_item_canonical_item1`
+                  FOREIGN KEY (`canonical_item_id`)
+                  REFERENCES `${marketplace-pricing-schema}`.`canonical_item` (`canonical_item_id`)
+                  ON DELETE NO ACTION
+                  ON UPDATE NO ACTION)
+              ENGINE = InnoDB
+              COMMENT = 'How to find one canonical item on one marketplace: its key there and how lots are matched to it.';
+
+
+              -- -----------------------------------------------------
+              -- Table `${marketplace-pricing-schema}`.`want_list_item`
+              -- -----------------------------------------------------
+              CREATE TABLE IF NOT EXISTS `${marketplace-pricing-schema}`.`want_list_item` (
+                `environment_code` VARCHAR(16) NOT NULL COMMENT 'LCMS environment that needs this item priced: sandbox, dev or prod.',
+                `canonical_item_id` INT NOT NULL COMMENT 'Item the environment needs priced.',
+                `condition_code` VARCHAR(8) NOT NULL COMMENT 'Condition the environment is selling: N (new) or U (used).',
+                `completeness_code` VARCHAR(8) NOT NULL COMMENT 'Sub-condition the environment is selling: S (sealed), C (complete), B (incomplete) or X.',
+                `first_wanted_at` DATETIME NOT NULL COMMENT 'Timestamp when the environment first asked for this item to be priced.',
+                `last_confirmed_at` DATETIME NOT NULL COMMENT 'Timestamp when the environment last confirmed it still needs this item priced.',
+                PRIMARY KEY (`environment_code`, `canonical_item_id`, `condition_code`, `completeness_code`),
+                INDEX `fk_want_list_item_canonical_item1_idx` (`canonical_item_id` ASC, `condition_code` ASC) VISIBLE,
+                CONSTRAINT `fk_want_list_item_canonical_item1`
+                  FOREIGN KEY (`canonical_item_id`)
+                  REFERENCES `${marketplace-pricing-schema}`.`canonical_item` (`canonical_item_id`)
+                  ON DELETE NO ACTION
+                  ON UPDATE NO ACTION)
+              ENGINE = InnoDB
+              COMMENT = 'What each environment needs priced. Each environment maintains its own rows. The crawler schedules crawl targets from the union of all rows.';
+
+
+              -- -----------------------------------------------------
+              -- Table `${marketplace-pricing-schema}`.`crawl_target`
+              -- -----------------------------------------------------
+              CREATE TABLE IF NOT EXISTS `${marketplace-pricing-schema}`.`crawl_target` (
+                `crawl_target_id` BIGINT NOT NULL AUTO_INCREMENT COMMENT 'Surrogate primary key for the crawl target.',
+                `marketplace_code` VARCHAR(32) NOT NULL COMMENT 'Marketplace this target is crawled on.',
+                `canonical_item_id` INT NOT NULL COMMENT 'Item this target crawls.',
+                `query_condition_code` VARCHAR(8) NOT NULL COMMENT 'Condition one fetch asks for: N or U. One fetch returns every sub-condition, which pricing filters afterwards.',
+                `target_status_code` VARCHAR(32) NOT NULL DEFAULT 'IDLE' COMMENT 'IDLE (waiting for next_due_at), CLAIMED (a crawler is fetching it) or DISABLED (no environment wants it).',
+                `next_due_at` DATETIME NOT NULL COMMENT 'Earliest time the target may be crawled again.',
+                `claimed_at` DATETIME NULL DEFAULT NULL COMMENT 'Timestamp when a crawler claimed the target. NULL unless CLAIMED.',
+                `claim_expires_at` DATETIME NULL DEFAULT NULL COMMENT 'Timestamp after which a claim from a crawler that stopped may be taken over.',
+                `claimed_by` VARCHAR(128) NULL DEFAULT NULL COMMENT 'Crawler instance holding the claim, for operational review.',
+                `last_attempt_at` DATETIME NULL DEFAULT NULL COMMENT 'Timestamp of the latest crawl attempt, successful or not.',
+                `last_success_at` DATETIME NULL DEFAULT NULL COMMENT 'Timestamp of the latest successful crawl.',
+                `last_market_snapshot_id` BIGINT NULL DEFAULT NULL COMMENT 'Snapshot written by the latest successful crawl.',
+                `consecutive_failure_count` INT NOT NULL DEFAULT 0 COMMENT 'Failed attempts since the last success. Drives the retry backoff.',
+                `last_error_message` TEXT NULL DEFAULT NULL COMMENT 'Most recent failure reason. NULL after a success.',
+                `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'Timestamp when this row was created.',
+                `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT 'Timestamp when this row was last updated.',
+                PRIMARY KEY (`crawl_target_id`),
+                UNIQUE INDEX `uq_crawl_target_marketplace_item_condition` (`marketplace_code` ASC, `canonical_item_id` ASC, `query_condition_code` ASC) VISIBLE,
+                INDEX `idx_crawl_target_status_due` (`target_status_code` ASC, `next_due_at` ASC) VISIBLE,
+                INDEX `fk_crawl_target_canonical_item1_idx` (`canonical_item_id` ASC) VISIBLE,
+                CONSTRAINT `fk_crawl_target_marketplace1`
+                  FOREIGN KEY (`marketplace_code`)
+                  REFERENCES `${marketplace-pricing-schema}`.`marketplace` (`marketplace_code`)
+                  ON DELETE NO ACTION
+                  ON UPDATE NO ACTION,
+                CONSTRAINT `fk_crawl_target_canonical_item1`
+                  FOREIGN KEY (`canonical_item_id`)
+                  REFERENCES `${marketplace-pricing-schema}`.`canonical_item` (`canonical_item_id`)
+                  ON DELETE NO ACTION
+                  ON UPDATE NO ACTION)
+              ENGINE = InnoDB
+              COMMENT = 'The crawl queue: one stable row per marketplace, item and query condition, updated in place by each crawl.';
+
+
+              -- -----------------------------------------------------
+              -- Table `${marketplace-pricing-schema}`.`market_snapshot`
+              -- -----------------------------------------------------
+              CREATE TABLE IF NOT EXISTS `${marketplace-pricing-schema}`.`market_snapshot` (
+                `market_snapshot_id` BIGINT NOT NULL AUTO_INCREMENT COMMENT 'Surrogate primary key for the market snapshot.',
+                `crawl_target_id` BIGINT NULL DEFAULT NULL COMMENT 'Crawl target that produced the snapshot. NULL for history copied from an environment that had no target.',
+                `marketplace_code` VARCHAR(32) NOT NULL COMMENT 'Marketplace the lots were captured from.',
+                `canonical_item_id` INT NOT NULL COMMENT 'Item whose lots were captured.',
+                `query_condition_code` VARCHAR(8) NOT NULL COMMENT 'Condition the fetch asked for: N or U.',
+                `marketplace_item_key` VARCHAR(255) NULL DEFAULT NULL COMMENT 'Marketplace item key used for the fetch, such as the BrickLink item number.',
+                `marketplace_unique_key` VARCHAR(255) NULL DEFAULT NULL COMMENT 'Marketplace internal key used for the fetch, such as the BrickLink idItem.',
+                `request_url` VARCHAR(1024) NULL DEFAULT NULL COMMENT 'Endpoint the fetch called.',
+                `request_parameters` TEXT NULL DEFAULT NULL COMMENT 'Serialized request parameters of the fetch.',
+                `raw_payload_hash` VARCHAR(64) NULL DEFAULT NULL COMMENT 'Hash of the raw response, for duplicate detection and audit.',
+                `listing_count` INT NOT NULL COMMENT 'Number of lots the fetch returned.',
+                `captured_at` DATETIME NOT NULL COMMENT 'Timestamp when the lots were captured. Pricing uses it to tell newer data from older.',
+                `source_environment_code` VARCHAR(16) NULL DEFAULT NULL COMMENT 'For history copied from an environment schema: the environment it came from. NULL for crawled snapshots.',
+                `source_pricing_snapshot_id` BIGINT NULL DEFAULT NULL COMMENT 'For copied history: the pricing_snapshot_id in source_environment_code. NULL for crawled snapshots.',
+                `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'Timestamp when this row was created.',
+                PRIMARY KEY (`market_snapshot_id`),
+                INDEX `idx_market_snapshot_item_condition_captured` (`canonical_item_id` ASC, `query_condition_code` ASC, `captured_at` ASC) VISIBLE,
+                INDEX `idx_market_snapshot_crawl_target` (`crawl_target_id` ASC) VISIBLE,
+                INDEX `fk_market_snapshot_marketplace1_idx` (`marketplace_code` ASC) VISIBLE,
+                UNIQUE INDEX `uq_market_snapshot_source` (`source_environment_code` ASC, `source_pricing_snapshot_id` ASC) VISIBLE,
+                CONSTRAINT `fk_market_snapshot_crawl_target1`
+                  FOREIGN KEY (`crawl_target_id`)
+                  REFERENCES `${marketplace-pricing-schema}`.`crawl_target` (`crawl_target_id`)
+                  ON DELETE NO ACTION
+                  ON UPDATE NO ACTION,
+                CONSTRAINT `fk_market_snapshot_marketplace1`
+                  FOREIGN KEY (`marketplace_code`)
+                  REFERENCES `${marketplace-pricing-schema}`.`marketplace` (`marketplace_code`)
+                  ON DELETE NO ACTION
+                  ON UPDATE NO ACTION,
+                CONSTRAINT `fk_market_snapshot_canonical_item1`
+                  FOREIGN KEY (`canonical_item_id`)
+                  REFERENCES `${marketplace-pricing-schema}`.`canonical_item` (`canonical_item_id`)
+                  ON DELETE NO ACTION
+                  ON UPDATE NO ACTION)
+              ENGINE = InnoDB
+              COMMENT = 'One successful fetch of the lots for sale for one item and condition on one marketplace. Every crawl adds a row, so the rows are the price history.';
+
+
+              -- -----------------------------------------------------
+              -- Table `${marketplace-pricing-schema}`.`market_listing`
+              -- -----------------------------------------------------
+              CREATE TABLE IF NOT EXISTS `${marketplace-pricing-schema}`.`market_listing` (
+                `market_listing_id` BIGINT NOT NULL AUTO_INCREMENT COMMENT 'Surrogate primary key for the captured lot.',
+                `market_snapshot_id` BIGINT NOT NULL COMMENT 'Snapshot the lot was captured in.',
+                `external_listing_id` VARCHAR(255) NULL DEFAULT NULL COMMENT 'Marketplace-native lot or listing id, such as the BrickLink idInv.',
+                `seller_key` VARCHAR(255) NULL DEFAULT NULL COMMENT 'Marketplace seller account name, such as the BrickLink username. Used to exclude our own lots.',
+                `seller_name` VARCHAR(255) NULL DEFAULT NULL COMMENT 'Seller store display name, when the marketplace gives one.',
+                `seller_country_code` VARCHAR(8) NULL DEFAULT NULL COMMENT 'Seller country code.',
+                `seller_feedback_score` INT NULL DEFAULT NULL COMMENT 'Seller feedback score, when the marketplace gives one.',
+                `raw_condition_code` VARCHAR(64) NULL DEFAULT NULL COMMENT 'Condition exactly as the marketplace reported it.',
+                `raw_completeness_code` VARCHAR(64) NULL DEFAULT NULL COMMENT 'Sub-condition exactly as the marketplace reported it.',
+                `condition_code` VARCHAR(8) NULL DEFAULT NULL COMMENT 'Canonical condition: N or U. NULL when it could not be mapped.',
+                `completeness_code` VARCHAR(8) NULL DEFAULT NULL COMMENT 'Canonical sub-condition: S, C, B or X. NULL when it could not be mapped.',
+                `match_confidence` DECIMAL(5,4) NULL DEFAULT NULL COMMENT 'Confidence that the lot is this item in this condition: 1.0000 for a catalog-id match, lower for a search match.',
+                `listing_format_code` VARCHAR(32) NOT NULL DEFAULT 'FIXED_PRICE' COMMENT 'FIXED_PRICE or AUCTION.',
+                `quantity_available` INT NULL DEFAULT NULL COMMENT 'Quantity available in the lot.',
+                `item_price` DECIMAL(12,2) NOT NULL COMMENT 'Asking price for one unit, in currency_code.',
+                `shipping_price` DECIMAL(12,2) NULL DEFAULT NULL COMMENT 'Shipping for one unit, in currency_code. NULL when the marketplace does not show it with the lot, as on BrickLink.',
+                `total_price` DECIMAL(12,2) NULL DEFAULT NULL COMMENT 'item_price plus shipping_price. NULL when shipping_price is unknown.',
+                `currency_code` VARCHAR(8) NOT NULL COMMENT 'Currency of item_price, shipping_price and total_price.',
+                `native_price` DECIMAL(12,2) NULL DEFAULT NULL COMMENT 'Asking price in the seller''s own currency, when it differs from currency_code.',
+                `native_currency_code` VARCHAR(8) NULL DEFAULT NULL COMMENT 'Currency of native_price.',
+                `description` TEXT NULL DEFAULT NULL COMMENT 'Seller''s lot description.',
+                `source_listing_payload` TEXT NULL DEFAULT NULL COMMENT 'Serialized source fragment for the lot, to support audit and parser changes.',
+                `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'Timestamp when this row was created.',
+                PRIMARY KEY (`market_listing_id`),
+                INDEX `idx_market_listing_snapshot` (`market_snapshot_id` ASC) VISIBLE,
+                CONSTRAINT `fk_market_listing_market_snapshot1`
+                  FOREIGN KEY (`market_snapshot_id`)
+                  REFERENCES `${marketplace-pricing-schema}`.`market_snapshot` (`market_snapshot_id`)
+                  ON DELETE NO ACTION
+                  ON UPDATE NO ACTION)
+              ENGINE = InnoDB
+              COMMENT = 'One competitor lot captured in a market snapshot, with the condition both as reported and in canonical form.';
+
+
+              -- -----------------------------------------------------
+              -- Table `${marketplace-pricing-schema}`.`crawl_attempt`
+              -- -----------------------------------------------------
+              CREATE TABLE IF NOT EXISTS `${marketplace-pricing-schema}`.`crawl_attempt` (
+                `crawl_attempt_id` BIGINT NOT NULL AUTO_INCREMENT COMMENT 'Surrogate primary key for the crawl attempt.',
+                `crawl_target_id` BIGINT NOT NULL COMMENT 'Target the attempt crawled.',
+                `started_at` DATETIME NOT NULL COMMENT 'Timestamp when the attempt started.',
+                `finished_at` DATETIME NULL DEFAULT NULL COMMENT 'Timestamp when the attempt finished. NULL while it runs or if the crawler stopped.',
+                `outcome_code` VARCHAR(32) NOT NULL COMMENT 'Result, such as SUCCEEDED, FAILED_HTTP, FAILED_PARSE or FAILED_RESOLVE.',
+                `error_message` TEXT NULL DEFAULT NULL COMMENT 'Failure reason. NULL on success.',
+                `market_snapshot_id` BIGINT NULL DEFAULT NULL COMMENT 'Snapshot the attempt wrote. NULL unless it succeeded.',
+                PRIMARY KEY (`crawl_attempt_id`),
+                INDEX `idx_crawl_attempt_target_started` (`crawl_target_id` ASC, `started_at` ASC) VISIBLE,
+                INDEX `fk_crawl_attempt_market_snapshot1_idx` (`market_snapshot_id` ASC) VISIBLE,
+                CONSTRAINT `fk_crawl_attempt_crawl_target1`
+                  FOREIGN KEY (`crawl_target_id`)
+                  REFERENCES `${marketplace-pricing-schema}`.`crawl_target` (`crawl_target_id`)
+                  ON DELETE NO ACTION
+                  ON UPDATE NO ACTION,
+                CONSTRAINT `fk_crawl_attempt_market_snapshot1`
+                  FOREIGN KEY (`market_snapshot_id`)
+                  REFERENCES `${marketplace-pricing-schema}`.`market_snapshot` (`market_snapshot_id`)
+                  ON DELETE NO ACTION
+                  ON UPDATE NO ACTION)
+              ENGINE = InnoDB
+              COMMENT = 'Append-only log of every crawl attempt, so failures and outages stay visible after crawl_target moves on.';

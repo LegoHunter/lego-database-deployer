@@ -1,0 +1,6 @@
+# Changelog for the shared marketplace_pricing schema (HOMELAB-31). Run it with
+# deployer.changelog=MARKETPLACE_PRICING (profiles marketplace-pricing and marketplace-pricing-scratch).
+# The environment schemas have their own changelog: db/changelog/db.changelog-master.yaml.
+databaseChangeLog:
+  - includeAll:
+      path: db/marketplace-pricing/files
