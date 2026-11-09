@@ -1,0 +1,49 @@
+# Lets a pricing decision and its apply-readiness row point at the shared market data (HOMELAB-31).
+#
+# The crawled lots move to the shared marketplace_pricing schema. A decision made from them records
+# the market_snapshot it used, plus the snapshot's capture time, so the stale-decision check can still
+# tell whether newer market data exists. There is no foreign key: the snapshot lives in another schema.
+#
+# Additive only: the columns are nullable and the existing pricing_snapshot_id columns stay until the
+# code has moved over (HOMELAB-32) and a later cleanup changeset removes them.
+databaseChangeLog:
+  - changeSet:
+      id: 2.2.0-market-snapshot-reference
+      author: tvattima
+      comment: Nullable market_snapshot reference on pricing_decision and pricing_apply_readiness (HOMELAB-31).
+      preConditions:
+        - onFail: HALT
+        - onFailMessage: "pricing_decision.market_snapshot_id already exists: this changeset has already been applied by hand."
+        - not:
+            - columnExists:
+                tableName: pricing_decision
+                columnName: market_snapshot_id
+      changes:
+        - sql:
+            dbms: mysql
+            splitStatements: true
+            stripComments: false
+            sql: |
+              ALTER TABLE `${environment-schema}`.`pricing_decision`
+                ADD COLUMN `market_snapshot_id` BIGINT NULL DEFAULT NULL COMMENT 'marketplace_pricing.market_snapshot the decision was made from. No foreign key: the snapshot is in the shared schema.' AFTER `pricing_snapshot_id`,
+                ADD COLUMN `market_snapshot_captured_at` DATETIME NULL DEFAULT NULL COMMENT 'captured_at of market_snapshot_id, kept here so the stale-decision check needs no cross-schema join.' AFTER `market_snapshot_id`,
+                ADD INDEX `idx_pricing_decision_market_snapshot` (`market_snapshot_id` ASC) VISIBLE;
+
+              ALTER TABLE `${environment-schema}`.`pricing_apply_readiness`
+                ADD COLUMN `market_snapshot_id` BIGINT NULL DEFAULT NULL COMMENT 'marketplace_pricing.market_snapshot that supplied the evaluated decision. No foreign key: the snapshot is in the shared schema.' AFTER `pricing_snapshot_id`,
+                ADD COLUMN `market_snapshot_captured_at` DATETIME NULL DEFAULT NULL COMMENT 'captured_at of market_snapshot_id.' AFTER `market_snapshot_id`,
+                ADD INDEX `idx_pricing_apply_readiness_market_snapshot` (`market_snapshot_id` ASC) VISIBLE;
+      rollback:
+        - sql:
+            dbms: mysql
+            splitStatements: true
+            sql: |
+              ALTER TABLE `${environment-schema}`.`pricing_apply_readiness`
+                DROP INDEX `idx_pricing_apply_readiness_market_snapshot`,
+                DROP COLUMN `market_snapshot_captured_at`,
+                DROP COLUMN `market_snapshot_id`;
+
+              ALTER TABLE `${environment-schema}`.`pricing_decision`
+                DROP INDEX `idx_pricing_decision_market_snapshot`,
+                DROP COLUMN `market_snapshot_captured_at`,
+                DROP COLUMN `market_snapshot_id`;

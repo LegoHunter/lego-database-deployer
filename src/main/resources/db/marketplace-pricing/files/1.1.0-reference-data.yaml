@@ -1,0 +1,18 @@
+# The marketplaces the pricing crawler knows (HOMELAB-31). BrickLink is crawled; eBay is listed so
+# the model has a second marketplace from the start and stays disabled until it has a crawler.
+#
+# loadUpdateData upserts by primary key, so a re-run changes nothing. Changing a value later: add a
+# NEW changeset with its own CSV; never edit this CSV once the changeset has run anywhere.
+databaseChangeLog:
+  - changeSet:
+      id: 1.1.0-reference-data
+      author: tvattima
+      comment: Marketplaces known to the pricing crawler (HOMELAB-31).
+      changes:
+        - loadUpdateData:
+            tableName: marketplace
+            primaryKey: marketplace_code
+            file: ../data/1.1.0-reference-data/marketplace.csv
+            relativeToChangelogFile: true
+            separator: ','
+            encoding: UTF-8

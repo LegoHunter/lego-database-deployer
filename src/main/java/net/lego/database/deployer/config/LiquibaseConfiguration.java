@@ -18,22 +18,24 @@ import javax.sql.DataSource;
 public class LiquibaseConfiguration {
     private static final Logger log = LoggerFactory.getLogger(LiquibaseConfiguration.class);
 
-    static final String CHANGE_LOG = "classpath:/db/changelog/db.changelog-master.yaml";
+    static final String CHANGE_LOG = DeployerChangelog.ENVIRONMENT.getChangeLog();
 
     @Bean
     @ConditionalOnProperty(prefix = "spring.liquibase", name = "enabled", havingValue = "true", matchIfMissing = true)
     public SpringLiquibase liquibase(@Qualifier("targetDataSource") final DataSource targetDataSource,
                                      final LiquibaseProperties liquibaseProperties,
-                                     @Value("${deployer.mode:UPDATE}") final DeployerMode mode) throws Exception {
-        String environmentSchema = liquibaseProperties.getParameters() == null
-                ? null : liquibaseProperties.getParameters().get("environment-schema");
-        String schema = TargetSchemaGuard.verify(targetDataSource, environmentSchema);
-        log.info("Deployer mode [{}] on schema [{}], parameters {}", mode, schema, liquibaseProperties.getParameters());
+                                     @Value("${deployer.mode:UPDATE}") final DeployerMode mode,
+                                     @Value("${deployer.changelog:ENVIRONMENT}") final DeployerChangelog changelog) throws Exception {
+        String targetSchema = liquibaseProperties.getParameters() == null
+                ? null : liquibaseProperties.getParameters().get(changelog.getSchemaParameter());
+        String schema = TargetSchemaGuard.verify(targetDataSource, changelog, targetSchema);
+        log.info("Deployer mode [{}], changelog [{}] on schema [{}], parameters {}",
+                mode, changelog, schema, liquibaseProperties.getParameters());
 
         DeployerLiquibase liquibase = new DeployerLiquibase(mode);
         liquibase.setDataSource(targetDataSource);
         liquibase.setChangeLogParameters(liquibaseProperties.getParameters());
-        liquibase.setChangeLog(CHANGE_LOG);
+        liquibase.setChangeLog(changelog.getChangeLog());
         return liquibase;
     }
 }

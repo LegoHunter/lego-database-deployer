@@ -1,0 +1,23 @@
+# Builds the shared marketplace_pricing schema (HOMELAB-31) with the MARKETPLACE_PRICING changelog.
+deployer:
+  changelog: MARKETPLACE_PRICING
+
+spring:
+  liquibase:
+    parameters:
+      marketplace-pricing-schema: marketplace_pricing
+
+target-database:
+  datasource:
+    database-key-name: rasppi5-01-marketplace-pricing
+    hikari:
+      connection-timeout: 2345
+      idle-timeout: 3456
+      connection-test-query: SELECT 1
+      initialization-fail-timeout: 10000
+      auto-commit: false
+      login-timeout: 10000
+      minimum-idle: 5
+      maximum-pool-size: 5
+      validation-timeout: 300000
+      pool-name: rasppi5-01-marketplace-pricing-jdbc-pool
