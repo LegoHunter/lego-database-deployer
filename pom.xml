@@ -16,7 +16,37 @@
 
     <properties>
         <java.version>22</java.version>
+        <github.organization>LegoHunter</github.organization>
+        <github.repo.url>https://github.com/${github.organization}/lego-database-deployer.git</github.repo.url>
     </properties>
+
+    <scm>
+        <url>${github.repo.url}</url>
+        <connection>scm:git:${github.repo.url}</connection>
+        <developerConnection>scm:git:${github.repo.url}</developerConnection>
+    </scm>
+
+    <distributionManagement>
+        <repository>
+            <id>github</id>
+            <name>GitHub Packages</name>
+            <url>https://maven.pkg.github.com/${github.organization}/lego-database-deployer</url>
+        </repository>
+    </distributionManagement>
+
+    <repositories>
+        <repository>
+            <id>central</id>
+            <url>https://repo1.maven.org/maven2</url>
+        </repository>
+        <repository>
+            <id>github</id>
+            <url>https://maven.pkg.github.com/${github.organization}/*</url>
+            <snapshots>
+                <enabled>true</enabled>
+            </snapshots>
+        </repository>
+    </repositories>
 
     <dependencies>
         <dependency>
