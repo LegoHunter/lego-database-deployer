@@ -18,6 +18,8 @@ schema follow it.
 - **Never edit a changeset that has already run anywhere.** Liquibase stores each changeset's checksum and
   refuses a changed file. Write a new changeset instead.
 - `2.1.0-reference-data` loads the lookup tables every environment needs.
+- `2.3.0-pricing-decision-guard` adds the Reprice guard outcome to `pricing_decision`
+  (`guard_status_code`, `guard_reason_code`, both nullable; HOMELAB-65).
 
 ## The shared pricing changelog
 

@@ -34,9 +34,10 @@ class BaselineChangelogTest {
     private static final String MASTER = "db/changelog/db.changelog-master.yaml";
 
     @Test
-    void changelogHoldsTheBaselineThenTheReferenceDataThenTheMarketSnapshotReference() throws Exception {
+    void changelogHoldsTheBaselineThenTheReferenceDataThenTheMarketSnapshotReferenceThenTheGuard() throws Exception {
         assertThat(changeSets()).extracting(ChangeSet::getId)
-                .containsExactly("2.0.0-baseline", "2.1.0-reference-data", "2.2.0-market-snapshot-reference");
+                .containsExactly("2.0.0-baseline", "2.1.0-reference-data", "2.2.0-market-snapshot-reference",
+                        "2.3.0-pricing-decision-guard");
     }
 
     @Test
@@ -98,10 +99,23 @@ class BaselineChangelogTest {
         String sql = ((RawSQLChange) changeSet.getChanges().get(0)).getSql();
 
         assertThat(sql).doesNotContain("lego_dev", "lego_sandbox", "lego_prod");
-        assertThat(sql).doesNotContainPattern("(?i)\bDROP\b");
+        assertThat(sql).doesNotContainPattern("(?i)\\bDROP\\b");
         assertThat(sql).contains("`lego_test`.`pricing_decision`", "`lego_test`.`pricing_apply_readiness`");
         assertThat(Pattern.compile("ADD COLUMN `market_snapshot_(id|captured_at)` [A-Z]+ NULL DEFAULT NULL").matcher(sql).results())
                 .hasSize(4);
+        assertThat(changeSet.getRollback().getChanges()).hasSize(1);
+    }
+
+    @Test
+    void pricingDecisionGuardOnlyAddsNullableColumnsAndCanRollBack() throws Exception {
+        ChangeSet changeSet = changeSets().get(3);
+        String sql = ((RawSQLChange) changeSet.getChanges().get(0)).getSql();
+
+        assertThat(sql).doesNotContain("lego_dev", "lego_sandbox", "lego_prod");
+        assertThat(sql).doesNotContainPattern("(?i)\\bDROP\\b");
+        assertThat(sql).contains("`lego_test`.`pricing_decision`");
+        assertThat(sql).contains("ADD COLUMN `guard_status_code` VARCHAR(32) NULL DEFAULT NULL",
+                "ADD COLUMN `guard_reason_code` VARCHAR(64) NULL DEFAULT NULL");
         assertThat(changeSet.getRollback().getChanges()).hasSize(1);
     }
 
@@ -126,6 +140,8 @@ class BaselineChangelogTest {
             assertThat(resultSet.getString(1) + ":" + resultSet.getString(2)).isEqualTo("2.1.0-reference-data:EXECUTED");
             assertThat(resultSet.next()).isTrue();
             assertThat(resultSet.getString(1) + ":" + resultSet.getString(2)).isEqualTo("2.2.0-market-snapshot-reference:EXECUTED");
+            assertThat(resultSet.next()).isTrue();
+            assertThat(resultSet.getString(1) + ":" + resultSet.getString(2)).isEqualTo("2.3.0-pricing-decision-guard:EXECUTED");
             assertThat(resultSet.next()).isFalse();
         }
     }
