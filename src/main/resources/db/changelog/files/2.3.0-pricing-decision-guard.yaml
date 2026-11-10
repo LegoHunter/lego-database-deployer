@@ -1,0 +1,37 @@
+# Records the Reprice guard outcome on each pricing decision (HOMELAB-65, design HOMELAB-23 phase A).
+#
+# The Reprice job decides a price and runs the guard (minimum move, confidence, comparable count,
+# maximum move, eligible reasons, fixed price, currency) in one pass, so the outcome is stored on the
+# decision itself instead of in a separate pricing_apply_readiness row.
+#
+# Additive only: both columns are nullable, so decisions made by the older decision job keep NULL.
+# The new decision statuses (BLOCKED, SYNC_FAILED) need no DDL: decision_status_code is a varchar.
+databaseChangeLog:
+  - changeSet:
+      id: 2.3.0-pricing-decision-guard
+      author: tvattima
+      comment: Nullable guard_status_code and guard_reason_code on pricing_decision (HOMELAB-65).
+      preConditions:
+        - onFail: HALT
+        - onFailMessage: "pricing_decision.guard_status_code already exists: this changeset has already been applied by hand."
+        - not:
+            - columnExists:
+                tableName: pricing_decision
+                columnName: guard_status_code
+      changes:
+        - sql:
+            dbms: mysql
+            splitStatements: true
+            stripComments: false
+            sql: |
+              ALTER TABLE `${environment-schema}`.`pricing_decision`
+                ADD COLUMN `guard_status_code` VARCHAR(32) NULL DEFAULT NULL COMMENT 'Reprice guard outcome: PASSED or BLOCKED. NULL for decisions made before the Reprice job.' AFTER `reason_code`,
+                ADD COLUMN `guard_reason_code` VARCHAR(64) NULL DEFAULT NULL COMMENT 'Why the guard blocked the decision, for example BELOW_MINIMUM_DELTA. NULL when it passed.' AFTER `guard_status_code`;
+      rollback:
+        - sql:
+            dbms: mysql
+            splitStatements: true
+            sql: |
+              ALTER TABLE `${environment-schema}`.`pricing_decision`
+                DROP COLUMN `guard_reason_code`,
+                DROP COLUMN `guard_status_code`;
