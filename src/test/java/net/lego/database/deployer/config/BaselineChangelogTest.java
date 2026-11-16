@@ -34,10 +34,11 @@ class BaselineChangelogTest {
     private static final String MASTER = "db/changelog/db.changelog-master.yaml";
 
     @Test
-    void changelogHoldsTheBaselineThenTheReferenceDataThenTheMarketSnapshotReferenceThenTheGuard() throws Exception {
+    void changelogHoldsTheBaselineThenTheReferenceDataThenTheMarketSnapshotReferenceThenTheGuardThenTheDrops() throws Exception {
         assertThat(changeSets()).extracting(ChangeSet::getId)
                 .containsExactly("2.0.0-baseline", "2.1.0-reference-data", "2.2.0-market-snapshot-reference",
-                        "2.3.0-pricing-decision-guard");
+                        "2.3.0-pricing-decision-guard", "2.4.0-drop-pricing-apply-readiness",
+                        "2.4.0-drop-legacy-pricing-crawl");
     }
 
     @Test
@@ -120,6 +121,37 @@ class BaselineChangelogTest {
     }
 
     @Test
+    void theDropsRemoveExactlyTheOldPricingTablesAndLinksAndCanRollBack() throws Exception {
+        // HOMELAB-66 phase B and HOMELAB-67: nothing else may be dropped.
+        ChangeSet readiness = changeSets().get(4);
+        ChangeSet crawl = changeSets().get(5);
+        String readinessSql = ((RawSQLChange) readiness.getChanges().get(0)).getSql();
+        String crawlSql = ((RawSQLChange) crawl.getChanges().get(0)).getSql();
+        String both = readinessSql + "\n" + crawlSql;
+
+        assertThat(both).doesNotContain("lego_dev", "lego_sandbox", "lego_prod", "marketplace_pricing");
+        assertThat(dropped(both, "DROP\\s+TABLE\\s+`lego_test`\\.`([a-z_]+)`"))
+                .containsExactly("pricing_apply_readiness", "pricing_snapshot_listing", "pricing_snapshot", "pricing_crawl_work_item");
+        assertThat(dropped(both, "DROP\\s+COLUMN\\s+`([a-z_]+)`"))
+                .containsExactly("pricing_apply_readiness_id", "pricing_snapshot_id");
+        assertThat(dropped(both, "DROP\\s+FOREIGN\\s+KEY\\s+`([a-z_0-9]+)`"))
+                .containsExactly("fk_marketplace_listing_sync_request_apply_readiness1", "fk_pricing_decision_snapshot1");
+        // The readiness table goes first: it references pricing_snapshot.
+        assertThat(readinessSql).contains("DROP TABLE `lego_test`.`pricing_apply_readiness`");
+        assertThat(readiness.getRollback().getChanges()).hasSize(1);
+        assertThat(crawl.getRollback().getChanges()).hasSize(1);
+    }
+
+    private static List<String> dropped(String sql, String regex) {
+        Matcher matcher = Pattern.compile(regex).matcher(sql);
+        List<String> names = new java.util.ArrayList<>();
+        while (matcher.find()) {
+            names.add(matcher.group(1));
+        }
+        return names;
+    }
+
+    @Test
     void realChangelogRefusesUpdateOnABuiltSchemaButSyncs() throws Exception {
         JdbcDataSource dataSource = new JdbcDataSource();
         dataSource.setURL("jdbc:h2:mem:baseline" + System.nanoTime() + ";DB_CLOSE_DELAY=-1");
@@ -142,6 +174,10 @@ class BaselineChangelogTest {
             assertThat(resultSet.getString(1) + ":" + resultSet.getString(2)).isEqualTo("2.2.0-market-snapshot-reference:EXECUTED");
             assertThat(resultSet.next()).isTrue();
             assertThat(resultSet.getString(1) + ":" + resultSet.getString(2)).isEqualTo("2.3.0-pricing-decision-guard:EXECUTED");
+            assertThat(resultSet.next()).isTrue();
+            assertThat(resultSet.getString(1) + ":" + resultSet.getString(2)).isEqualTo("2.4.0-drop-pricing-apply-readiness:EXECUTED");
+            assertThat(resultSet.next()).isTrue();
+            assertThat(resultSet.getString(1) + ":" + resultSet.getString(2)).isEqualTo("2.4.0-drop-legacy-pricing-crawl:EXECUTED");
             assertThat(resultSet.next()).isFalse();
         }
     }

@@ -1,0 +1,179 @@
+# Drops what the old pricing pipeline left behind (HOMELAB-66 schema phase B, HOMELAB-67; design HOMELAB-23).
+#
+# Since HOMELAB-66 the one pricing job is Reprice: it records its guard outcome on pricing_decision and
+# reads market data from the shared marketplace_pricing schema (HOMELAB-31/32). No code reads or writes
+# these any more:
+#   - pricing_apply_readiness, and marketplace_listing_sync_request.pricing_apply_readiness_id (+ FK, index);
+#   - pricing_crawl_work_item, pricing_snapshot, pricing_snapshot_listing (the per-environment crawl), and
+#     pricing_decision.pricing_snapshot_id (+ FK), which must go before pricing_snapshot can.
+#
+# Data: SANDBOX's crawl history (2,319 snapshots, 2026-08-24..2026-11-04) was copied into
+# marketplace_pricing.market_snapshot / market_listing by HOMELAB-31, so it is not lost. DEV's tables are
+# empty. The rollbacks recreate the structures empty; the rows are in the MySQL binlogs (30 days).
+#
+# Two changesets so a failure part-way can resume: MySQL DDL is not transactional. A table that is already
+# gone marks its changeset as run (MARK_RAN) instead of stopping the deployment: the goal is met.
+databaseChangeLog:
+  - changeSet:
+      id: 2.4.0-drop-pricing-apply-readiness
+      author: tvattima
+      comment: Drop pricing_apply_readiness and the sync request's link to it (HOMELAB-66 phase B).
+      preConditions:
+        - onFail: MARK_RAN
+        - onFailMessage: "pricing_apply_readiness is already gone, so there is nothing to drop: marked as run."
+        - tableExists:
+            tableName: pricing_apply_readiness
+      changes:
+        - sql:
+            dbms: mysql
+            splitStatements: true
+            stripComments: false
+            sql: |
+              ALTER TABLE `${environment-schema}`.`marketplace_listing_sync_request`
+                DROP FOREIGN KEY `fk_marketplace_listing_sync_request_apply_readiness1`;
+              ALTER TABLE `${environment-schema}`.`marketplace_listing_sync_request`
+                DROP INDEX `idx_marketplace_listing_sync_request_readiness`,
+                DROP COLUMN `pricing_apply_readiness_id`;
+              DROP TABLE `${environment-schema}`.`pricing_apply_readiness`;
+      rollback:
+        - sql:
+            dbms: mysql
+            splitStatements: true
+            sql: |
+              CREATE TABLE `${environment-schema}`.`pricing_apply_readiness` (
+                `pricing_apply_readiness_id` bigint NOT NULL AUTO_INCREMENT COMMENT 'Surrogate primary key for the persisted apply-readiness evaluation.',
+                `marketplace_listing_id` int NOT NULL COMMENT 'Marketplace listing whose latest pricing decision was evaluated for possible price application.',
+                `pricing_decision_id` bigint NOT NULL COMMENT 'Pricing decision evaluated by the apply-readiness process; one readiness row is retained per decision.',
+                `pricing_snapshot_id` bigint DEFAULT NULL COMMENT 'Pricing snapshot that supplied comparable data for the evaluated decision, when one exists.',
+                `market_snapshot_id` bigint DEFAULT NULL COMMENT 'marketplace_pricing.market_snapshot that supplied the evaluated decision. No foreign key: the snapshot is in the shared schema.',
+                `market_snapshot_captured_at` datetime DEFAULT NULL COMMENT 'captured_at of market_snapshot_id.',
+                `readiness_status_code` varchar(64) NOT NULL COMMENT 'Overall apply-readiness result, such as READY_TO_APPLY or a BLOCKED_* status explaining why the price should not be applied.',
+                `block_reason_code` varchar(64) DEFAULT NULL COMMENT 'Specific guardrail or lifecycle reason that blocked price application, such as BELOW_MINIMUM_DELTA_PERCENT or STALE_DECISION.',
+                `current_price` decimal(12,2) DEFAULT NULL COMMENT 'Marketplace listing unit price observed when readiness was evaluated.',
+                `proposed_price` decimal(12,2) DEFAULT NULL COMMENT 'Final price from the pricing decision that would be applied if the readiness result is approved in a future phase.',
+                `delta_amount` decimal(12,2) DEFAULT NULL COMMENT 'Absolute currency movement between current_price and proposed_price at evaluation time.',
+                `delta_percent` decimal(8,6) DEFAULT NULL COMMENT 'Relative movement between current_price and proposed_price at evaluation time, represented as a decimal percent such as 0.020000 for 2 percent.',
+                `minimum_required_delta` decimal(12,2) DEFAULT NULL COMMENT 'Configured minimum currency movement required for application after rounding the configured percent threshold up to the penny.',
+                `currency_code` varchar(8) NOT NULL COMMENT 'Currency code used for current_price, proposed_price, and delta values.',
+                `confidence` decimal(5,4) DEFAULT NULL COMMENT 'Pricing decision confidence value copied into readiness for review and filtering.',
+                `comparable_count` int DEFAULT NULL COMMENT 'Number of comparable listings used by the pricing decision and considered by readiness guardrails.',
+                `evaluated_at` datetime NOT NULL COMMENT 'Timestamp when the apply-readiness service evaluated this pricing decision.',
+                `created_at` datetime NOT NULL COMMENT 'Timestamp when this apply-readiness row was first created.',
+                `updated_at` datetime NOT NULL COMMENT 'Timestamp when this apply-readiness row was last updated by a readiness re-evaluation.',
+                PRIMARY KEY (`pricing_apply_readiness_id`),
+                UNIQUE KEY `uq_pricing_apply_readiness_decision` (`pricing_decision_id`),
+                KEY `idx_pricing_apply_readiness_listing_status` (`marketplace_listing_id`,`readiness_status_code`),
+                KEY `idx_pricing_apply_readiness_snapshot` (`pricing_snapshot_id`),
+                KEY `idx_pricing_apply_readiness_block_reason` (`block_reason_code`),
+                KEY `idx_pricing_apply_readiness_evaluated_at` (`evaluated_at`),
+                KEY `idx_pricing_apply_readiness_market_snapshot` (`market_snapshot_id`),
+                CONSTRAINT `fk_pricing_apply_readiness_marketplace_listing1` FOREIGN KEY (`marketplace_listing_id`) REFERENCES `${environment-schema}`.`marketplace_listing` (`marketplace_listing_id`),
+                CONSTRAINT `fk_pricing_apply_readiness_pricing_decision1` FOREIGN KEY (`pricing_decision_id`) REFERENCES `${environment-schema}`.`pricing_decision` (`pricing_decision_id`),
+                CONSTRAINT `fk_pricing_apply_readiness_pricing_snapshot1` FOREIGN KEY (`pricing_snapshot_id`) REFERENCES `${environment-schema}`.`pricing_snapshot` (`pricing_snapshot_id`)
+              ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='Durable apply-readiness evaluation for a pricing decision. The table records whether a computed pricing decision is ready for a future price application phase or why it is blocked, including the current/proposed price movement, guardrail context, confidence, comparable count, and source snapshot used for review. Phase 9 keeps this data read-only and does not mutate marketplace listing prices or trigger external marketplace sync.';
+              ALTER TABLE `${environment-schema}`.`marketplace_listing_sync_request`
+                ADD COLUMN `pricing_apply_readiness_id` BIGINT NULL DEFAULT NULL COMMENT 'Apply-readiness evaluation that authorized or explained the price application tied to this sync request.' AFTER `pricing_decision_id`,
+                ADD INDEX `idx_marketplace_listing_sync_request_readiness` (`pricing_apply_readiness_id`),
+                ADD CONSTRAINT `fk_marketplace_listing_sync_request_apply_readiness1` FOREIGN KEY (`pricing_apply_readiness_id`) REFERENCES `${environment-schema}`.`pricing_apply_readiness` (`pricing_apply_readiness_id`);
+  - changeSet:
+      id: 2.4.0-drop-legacy-pricing-crawl
+      author: tvattima
+      comment: Drop the per-environment crawl tables and pricing_decision.pricing_snapshot_id (HOMELAB-67).
+      preConditions:
+        - onFail: MARK_RAN
+        - onFailMessage: "pricing_snapshot is already gone, so there is nothing to drop: marked as run."
+        - tableExists:
+            tableName: pricing_snapshot
+      changes:
+        - sql:
+            dbms: mysql
+            splitStatements: true
+            stripComments: false
+            sql: |
+              ALTER TABLE `${environment-schema}`.`pricing_decision`
+                DROP FOREIGN KEY `fk_pricing_decision_snapshot1`;
+              ALTER TABLE `${environment-schema}`.`pricing_decision`
+                DROP INDEX `fk_pricing_decision_snapshot1`,
+                DROP COLUMN `pricing_snapshot_id`;
+              DROP TABLE `${environment-schema}`.`pricing_snapshot_listing`;
+              DROP TABLE `${environment-schema}`.`pricing_snapshot`;
+              DROP TABLE `${environment-schema}`.`pricing_crawl_work_item`;
+      rollback:
+        - sql:
+            dbms: mysql
+            splitStatements: true
+            sql: |
+              CREATE TABLE `${environment-schema}`.`pricing_crawl_work_item` (
+                `pricing_crawl_work_item_id` bigint NOT NULL AUTO_INCREMENT COMMENT 'Surrogate primary key for the pricing crawl work item.',
+                `marketplace_listing_id` int NOT NULL COMMENT 'Marketplace listing whose competitive price data should be refreshed.',
+                `external_catalog_item_id` int NOT NULL COMMENT 'External catalog item being priced; for BrickLink this is the public item such as a set number.',
+                `source_external_service_id` int NOT NULL COMMENT 'External service from which pricing data should be crawled, such as BrickLink.',
+                `work_status_code` varchar(32) NOT NULL COMMENT 'Lifecycle status of the crawl work item, such as pending, claimed, succeeded, failed, or skipped.',
+                `attempt_count` int NOT NULL DEFAULT '0' COMMENT 'Number of crawl attempts already made for this work item.',
+                `max_attempts` int NOT NULL DEFAULT '3' COMMENT 'Maximum number of crawl attempts allowed before the work item should stop retrying.',
+                `next_attempt_at` datetime NOT NULL COMMENT 'Earliest timestamp at which this work item is eligible to be claimed by a pricing crawler.',
+                `claimed_at` datetime DEFAULT NULL COMMENT 'Timestamp when a worker claimed this work item for processing.',
+                `completed_at` datetime DEFAULT NULL COMMENT 'Timestamp when processing finished successfully, failed terminally, or was skipped.',
+                `source_request_url` varchar(1024) DEFAULT NULL COMMENT 'Source endpoint URL used or planned for the pricing crawl request.',
+                `source_request_parameters` text COMMENT 'Serialized source request parameters used or planned for the pricing crawl request.',
+                `last_error_message` text COMMENT 'Most recent crawl failure or skip reason captured for operational review.',
+                `created_at` datetime NOT NULL COMMENT 'Timestamp when the work item was created.',
+                `updated_at` datetime NOT NULL COMMENT 'Timestamp when the work item was last updated.',
+                PRIMARY KEY (`pricing_crawl_work_item_id`),
+                KEY `idx_pricing_crawl_work_item_status_due` (`work_status_code`,`next_attempt_at`),
+                KEY `idx_pricing_crawl_work_item_listing` (`marketplace_listing_id`),
+                KEY `fk_pricing_crawl_work_item_catalog_item1` (`external_catalog_item_id`),
+                KEY `fk_pricing_crawl_work_item_source_service1` (`source_external_service_id`),
+                CONSTRAINT `fk_pricing_crawl_work_item_catalog_item1` FOREIGN KEY (`external_catalog_item_id`) REFERENCES `${environment-schema}`.`external_catalog_item` (`external_catalog_item_id`),
+                CONSTRAINT `fk_pricing_crawl_work_item_marketplace_listing1` FOREIGN KEY (`marketplace_listing_id`) REFERENCES `${environment-schema}`.`marketplace_listing` (`marketplace_listing_id`),
+                CONSTRAINT `fk_pricing_crawl_work_item_source_service1` FOREIGN KEY (`source_external_service_id`) REFERENCES `${environment-schema}`.`external_service` (`external_service_id`)
+              ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='Durable work queue item used to pace and retry marketplace pricing crawls without running one long sleeping job.';
+              CREATE TABLE `${environment-schema}`.`pricing_snapshot` (
+                `pricing_snapshot_id` bigint NOT NULL AUTO_INCREMENT COMMENT 'Surrogate primary key for the pricing snapshot.',
+                `pricing_crawl_work_item_id` bigint DEFAULT NULL COMMENT 'Optional crawl work item that produced this pricing snapshot.',
+                `marketplace_listing_id` int DEFAULT NULL COMMENT 'Marketplace listing that requested this pricing snapshot, when the snapshot was listing-driven.',
+                `external_catalog_item_id` int NOT NULL COMMENT 'External catalog item whose marketplace pricing was captured.',
+                `source_external_service_id` int NOT NULL COMMENT 'External service from which the pricing snapshot was captured, such as BrickLink.',
+                `source_item_key` varchar(255) NOT NULL COMMENT 'Marketplace item key used for human-readable source identity, such as the BrickLink item number.',
+                `source_unique_key` varchar(255) DEFAULT NULL COMMENT 'Marketplace internal unique key used by source endpoints, such as BrickLink internal idItem.',
+                `item_condition_code` varchar(32) DEFAULT NULL COMMENT 'Source item condition code used to filter or describe the snapshot, such as New or Used.',
+                `completeness_code` varchar(64) DEFAULT NULL COMMENT 'Source completeness or sub-condition used to filter or describe the snapshot, such as sealed, complete, or incomplete.',
+                `source_request_url` varchar(1024) DEFAULT NULL COMMENT 'Source endpoint URL used to capture this pricing snapshot.',
+                `source_request_parameters` text COMMENT 'Serialized source request parameters used to capture this pricing snapshot.',
+                `raw_payload_hash` varchar(64) DEFAULT NULL COMMENT 'Hash of the raw source payload for duplicate detection and audit without storing the full payload here.',
+                `comparable_count` int DEFAULT NULL COMMENT 'Number of comparable listings captured in this snapshot and available to pricing algorithms.',
+                `captured_at` datetime NOT NULL COMMENT 'Timestamp when the source pricing data was captured.',
+                `created_at` datetime NOT NULL COMMENT 'Timestamp when the pricing snapshot row was created.',
+                PRIMARY KEY (`pricing_snapshot_id`),
+                KEY `idx_pricing_snapshot_listing` (`marketplace_listing_id`,`captured_at`),
+                KEY `idx_pricing_snapshot_catalog` (`external_catalog_item_id`,`captured_at`),
+                KEY `fk_pricing_snapshot_work_item1` (`pricing_crawl_work_item_id`),
+                KEY `fk_pricing_snapshot_source_service1` (`source_external_service_id`),
+                CONSTRAINT `fk_pricing_snapshot_catalog_item1` FOREIGN KEY (`external_catalog_item_id`) REFERENCES `${environment-schema}`.`external_catalog_item` (`external_catalog_item_id`),
+                CONSTRAINT `fk_pricing_snapshot_marketplace_listing1` FOREIGN KEY (`marketplace_listing_id`) REFERENCES `${environment-schema}`.`marketplace_listing` (`marketplace_listing_id`),
+                CONSTRAINT `fk_pricing_snapshot_source_service1` FOREIGN KEY (`source_external_service_id`) REFERENCES `${environment-schema}`.`external_service` (`external_service_id`),
+                CONSTRAINT `fk_pricing_snapshot_work_item1` FOREIGN KEY (`pricing_crawl_work_item_id`) REFERENCES `${environment-schema}`.`pricing_crawl_work_item` (`pricing_crawl_work_item_id`)
+              ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='Header for a captured marketplace pricing source snapshot, grouping comparable listings returned by one pricing crawl.';
+              CREATE TABLE `${environment-schema}`.`pricing_snapshot_listing` (
+                `pricing_snapshot_listing_id` bigint NOT NULL AUTO_INCREMENT COMMENT 'Surrogate primary key for the captured comparable listing.',
+                `pricing_snapshot_id` bigint NOT NULL COMMENT 'Pricing snapshot that owns this comparable listing row.',
+                `external_listing_id` varchar(255) DEFAULT NULL COMMENT 'Marketplace-native listing identifier for the comparable listing, when available.',
+                `seller_name` varchar(255) DEFAULT NULL COMMENT 'Marketplace seller display name for the comparable listing, when available.',
+                `seller_country_code` varchar(8) DEFAULT NULL COMMENT 'Seller country code for geographic filtering and domestic-versus-international comparisons.',
+                `item_condition_code` varchar(32) DEFAULT NULL COMMENT 'Source item condition code reported for the comparable listing, such as New or Used.',
+                `completeness_code` varchar(64) DEFAULT NULL COMMENT 'Source completeness or sub-condition reported for the comparable listing.',
+                `quantity_available` int DEFAULT NULL COMMENT 'Quantity available on the comparable marketplace listing.',
+                `unit_price` decimal(12,2) NOT NULL COMMENT 'Comparable listing unit price in the captured listing currency.',
+                `currency_code` varchar(8) NOT NULL COMMENT 'Currency code for the comparable listing unit price.',
+                `description` text COMMENT 'Buyer-facing source listing description captured for this comparable listing, when available.',
+                `extended_description` text COMMENT 'Additional source listing description captured for this comparable listing, when available.',
+                `source_listing_payload` text COMMENT 'Serialized source payload fragment for this comparable listing to support audit and parser changes.',
+                `created_at` datetime NOT NULL COMMENT 'Timestamp when the comparable listing row was created.',
+                PRIMARY KEY (`pricing_snapshot_listing_id`),
+                KEY `idx_pricing_snapshot_listing_snapshot` (`pricing_snapshot_id`),
+                CONSTRAINT `fk_pricing_snapshot_listing_snapshot1` FOREIGN KEY (`pricing_snapshot_id`) REFERENCES `${environment-schema}`.`pricing_snapshot` (`pricing_snapshot_id`)
+              ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='Comparable marketplace listing captured within a pricing snapshot and used as pricing algorithm input.';
+              ALTER TABLE `${environment-schema}`.`pricing_decision`
+                ADD COLUMN `pricing_snapshot_id` BIGINT NULL DEFAULT NULL COMMENT 'Pricing snapshot used as the primary source for this decision, when one was available.' AFTER `marketplace_listing_id`,
+                ADD INDEX `fk_pricing_decision_snapshot1` (`pricing_snapshot_id`),
+                ADD CONSTRAINT `fk_pricing_decision_snapshot1` FOREIGN KEY (`pricing_snapshot_id`) REFERENCES `${environment-schema}`.`pricing_snapshot` (`pricing_snapshot_id`);
