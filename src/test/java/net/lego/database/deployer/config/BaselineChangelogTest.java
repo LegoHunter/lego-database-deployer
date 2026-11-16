@@ -38,7 +38,7 @@ class BaselineChangelogTest {
         assertThat(changeSets()).extracting(ChangeSet::getId)
                 .containsExactly("2.0.0-baseline", "2.1.0-reference-data", "2.2.0-market-snapshot-reference",
                         "2.3.0-pricing-decision-guard", "2.4.0-drop-pricing-apply-readiness",
-                        "2.4.0-drop-legacy-pricing-crawl");
+                        "2.4.0-drop-legacy-pricing-crawl", "2.5.0-photo-keywords");
     }
 
     @Test
@@ -152,6 +152,19 @@ class BaselineChangelogTest {
     }
 
     @Test
+    void thePhotoKeywordColumnsAreNullableAndOnlyAdded() throws Exception {
+        // HOMELAB-96: NULL means "the photo has no such keyword", so none of the three may have a default value.
+        ChangeSet photoKeywords = changeSets().get(6);
+        String sql = ((RawSQLChange) photoKeywords.getChanges().get(0)).getSql();
+
+        assertThat(sql).doesNotContain("lego_dev", "lego_sandbox", "lego_prod", "DROP ", "NOT NULL");
+        assertThat(sql).contains("`lego_test`.`item_inventory_photo`");
+        assertThat(dropped(sql, "ADD\\s+COLUMN\\s+`([a-z_]+)`\\s+\\w+\\s+NULL\\s+DEFAULT\\s+NULL"))
+                .containsExactly("sealed_keyword", "built_once_keyword", "keywords");
+        assertThat(photoKeywords.getRollback().getChanges()).hasSize(1);
+    }
+
+    @Test
     void realChangelogRefusesUpdateOnABuiltSchemaButSyncs() throws Exception {
         JdbcDataSource dataSource = new JdbcDataSource();
         dataSource.setURL("jdbc:h2:mem:baseline" + System.nanoTime() + ";DB_CLOSE_DELAY=-1");
@@ -178,6 +191,8 @@ class BaselineChangelogTest {
             assertThat(resultSet.getString(1) + ":" + resultSet.getString(2)).isEqualTo("2.4.0-drop-pricing-apply-readiness:EXECUTED");
             assertThat(resultSet.next()).isTrue();
             assertThat(resultSet.getString(1) + ":" + resultSet.getString(2)).isEqualTo("2.4.0-drop-legacy-pricing-crawl:EXECUTED");
+            assertThat(resultSet.next()).isTrue();
+            assertThat(resultSet.getString(1) + ":" + resultSet.getString(2)).isEqualTo("2.5.0-photo-keywords:EXECUTED");
             assertThat(resultSet.next()).isFalse();
         }
     }

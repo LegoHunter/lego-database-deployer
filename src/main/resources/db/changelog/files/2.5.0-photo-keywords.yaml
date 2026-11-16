@@ -1,0 +1,40 @@
+# Records what each photo's own keywords said (HOMELAB-96).
+#
+# The owner's sealed / built-once rules are applied across every photo of an item: a sealed photo and a
+# bo:true photo conflict, two photos that disagree conflict, and a re-uploaded photo must not be judged
+# against its own earlier values. The item row only holds the merged result, so each photo now keeps its
+# own two values, plus its raw keyword list as a record of what it was tagged with.
+#
+# Additive only. All three columns are nullable: NULL in sealed_keyword / built_once_keyword means the
+# photo has no such keyword, which is different from false. Existing photo rows keep NULL.
+databaseChangeLog:
+  - changeSet:
+      id: 2.5.0-photo-keywords
+      author: tvattima
+      comment: Nullable sealed_keyword, built_once_keyword and keywords on item_inventory_photo (HOMELAB-96).
+      preConditions:
+        - onFail: MARK_RAN
+        - onFailMessage: "item_inventory_photo.sealed_keyword already exists, so there is nothing to add: marked as run."
+        - not:
+            - columnExists:
+                tableName: item_inventory_photo
+                columnName: sealed_keyword
+      changes:
+        - sql:
+            dbms: mysql
+            splitStatements: true
+            stripComments: false
+            sql: |
+              ALTER TABLE `${environment-schema}`.`item_inventory_photo`
+                ADD COLUMN `sealed_keyword` TINYINT NULL DEFAULT NULL COMMENT 'This photo''s own sealed keyword: 1 true, 0 false, NULL when the photo has none.' AFTER `caption`,
+                ADD COLUMN `built_once_keyword` TINYINT NULL DEFAULT NULL COMMENT 'This photo''s own bo (built once) keyword: 1 true, 0 false, NULL when the photo has none.' AFTER `sealed_keyword`,
+                ADD COLUMN `keywords` TEXT NULL DEFAULT NULL COMMENT 'Every keyword as read from the photo, joined with "; ". A record of what the photo was tagged with.' AFTER `built_once_keyword`;
+      rollback:
+        - sql:
+            dbms: mysql
+            splitStatements: true
+            sql: |
+              ALTER TABLE `${environment-schema}`.`item_inventory_photo`
+                DROP COLUMN `keywords`,
+                DROP COLUMN `built_once_keyword`,
+                DROP COLUMN `sealed_keyword`;
