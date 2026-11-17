@@ -1,0 +1,38 @@
+# Records which photo LegoHunter last stored as a BrickLink lot's custom image (HOMELAB-92).
+#
+# The lot image is set through the BrickLink website (the web gateway), not the official API, and
+# BrickLink gives every upload its own image id, so a lot cannot be compared with a photo. Instead
+# the listing keeps the md5 of the item_inventory_photo row it last sent. The lot image sync queues
+# a new upload when that md5 is no longer one of the item's primary photos.
+#
+# Additive only. Both columns are nullable: NULL means no image has been stored on the lot by
+# LegoHunter. Existing listings keep NULL, which is true for all of them.
+databaseChangeLog:
+  - changeSet:
+      id: 2.6.0-lot-image-sync
+      author: tvattima
+      comment: Nullable lot_image_md5 and lot_image_synced_at on bricklink_marketplace_listing (HOMELAB-92).
+      preConditions:
+        - onFail: MARK_RAN
+        - onFailMessage: "bricklink_marketplace_listing.lot_image_md5 already exists, so there is nothing to add: marked as run."
+        - not:
+            - columnExists:
+                tableName: bricklink_marketplace_listing
+                columnName: lot_image_md5
+      changes:
+        - sql:
+            dbms: mysql
+            splitStatements: true
+            stripComments: false
+            sql: |
+              ALTER TABLE `${environment-schema}`.`bricklink_marketplace_listing`
+                ADD COLUMN `lot_image_md5` CHAR(32) NULL DEFAULT NULL COMMENT 'md5 of the item_inventory_photo last stored as the BrickLink lot''s custom image. NULL when LegoHunter has stored none.' AFTER `last_remote_safety_message`,
+                ADD COLUMN `lot_image_synced_at` DATETIME NULL DEFAULT NULL COMMENT 'UTC time the web gateway confirmed the photo in lot_image_md5 on the BrickLink lot.' AFTER `lot_image_md5`;
+      rollback:
+        - sql:
+            dbms: mysql
+            splitStatements: true
+            sql: |
+              ALTER TABLE `${environment-schema}`.`bricklink_marketplace_listing`
+                DROP COLUMN `lot_image_synced_at`,
+                DROP COLUMN `lot_image_md5`;
