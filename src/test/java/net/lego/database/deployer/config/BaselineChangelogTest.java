@@ -38,7 +38,7 @@ class BaselineChangelogTest {
         assertThat(changeSets()).extracting(ChangeSet::getId)
                 .containsExactly("2.0.0-baseline", "2.1.0-reference-data", "2.2.0-market-snapshot-reference",
                         "2.3.0-pricing-decision-guard", "2.4.0-drop-pricing-apply-readiness",
-                        "2.4.0-drop-legacy-pricing-crawl", "2.5.0-photo-keywords");
+                        "2.4.0-drop-legacy-pricing-crawl", "2.5.0-photo-keywords", "2.6.0-lot-image-sync");
     }
 
     @Test
@@ -165,6 +165,19 @@ class BaselineChangelogTest {
     }
 
     @Test
+    void theLotImageColumnsAreNullableAndOnlyAdded() throws Exception {
+        // HOMELAB-92: NULL means "LegoHunter has stored no image on the lot", which is true for every existing listing.
+        ChangeSet lotImage = changeSets().get(7);
+        String sql = ((RawSQLChange) lotImage.getChanges().get(0)).getSql();
+
+        assertThat(sql).doesNotContain("lego_dev", "lego_sandbox", "lego_prod", "DROP ", "NOT NULL");
+        assertThat(sql).contains("`lego_test`.`bricklink_marketplace_listing`");
+        assertThat(dropped(sql, "ADD\\s+COLUMN\\s+`([a-z0-9_]+)`\\s+[\\w()]+\\s+NULL\\s+DEFAULT\\s+NULL"))
+                .containsExactly("lot_image_md5", "lot_image_synced_at");
+        assertThat(lotImage.getRollback().getChanges()).hasSize(1);
+    }
+
+    @Test
     void realChangelogRefusesUpdateOnABuiltSchemaButSyncs() throws Exception {
         JdbcDataSource dataSource = new JdbcDataSource();
         dataSource.setURL("jdbc:h2:mem:baseline" + System.nanoTime() + ";DB_CLOSE_DELAY=-1");
@@ -193,6 +206,8 @@ class BaselineChangelogTest {
             assertThat(resultSet.getString(1) + ":" + resultSet.getString(2)).isEqualTo("2.4.0-drop-legacy-pricing-crawl:EXECUTED");
             assertThat(resultSet.next()).isTrue();
             assertThat(resultSet.getString(1) + ":" + resultSet.getString(2)).isEqualTo("2.5.0-photo-keywords:EXECUTED");
+            assertThat(resultSet.next()).isTrue();
+            assertThat(resultSet.getString(1) + ":" + resultSet.getString(2)).isEqualTo("2.6.0-lot-image-sync:EXECUTED");
             assertThat(resultSet.next()).isFalse();
         }
     }
