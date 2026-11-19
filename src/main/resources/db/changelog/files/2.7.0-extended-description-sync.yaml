@@ -1,0 +1,39 @@
+# Records which Extended Description LegoHunter last stored on a BrickLink lot (HOMELAB-82).
+#
+# The Extended Description holds the item's photo captions and is written through the BrickLink
+# website (the web gateway), not the official API. BrickLink keeps it as HTML and changes the text
+# when it stores it (a double quote comes back as &quot;), so the lot cannot be compared with the
+# captions directly. Instead the listing keeps the SHA-256 of the text it last sent. The Extended
+# Description sync queues a new write when the text built from the current captions has another hash.
+#
+# Additive only. Both columns are nullable: NULL means LegoHunter has stored no Extended Description
+# on the lot, which is true for every existing listing.
+databaseChangeLog:
+  - changeSet:
+      id: 2.7.0-extended-description-sync
+      author: tvattima
+      comment: Nullable extended_description_hash and extended_description_synced_at on bricklink_marketplace_listing (HOMELAB-82).
+      preConditions:
+        - onFail: MARK_RAN
+        - onFailMessage: "bricklink_marketplace_listing.extended_description_hash already exists, so there is nothing to add: marked as run."
+        - not:
+            - columnExists:
+                tableName: bricklink_marketplace_listing
+                columnName: extended_description_hash
+      changes:
+        - sql:
+            dbms: mysql
+            splitStatements: true
+            stripComments: false
+            sql: |
+              ALTER TABLE `${environment-schema}`.`bricklink_marketplace_listing`
+                ADD COLUMN `extended_description_hash` CHAR(64) NULL DEFAULT NULL COMMENT 'SHA-256 (hex) of the Extended Description text LegoHunter last stored on the BrickLink lot. NULL when LegoHunter has stored none.' AFTER `lot_image_synced_at`,
+                ADD COLUMN `extended_description_synced_at` DATETIME NULL DEFAULT NULL COMMENT 'UTC time the web gateway confirmed the Extended Description in extended_description_hash on the BrickLink lot.' AFTER `extended_description_hash`;
+      rollback:
+        - sql:
+            dbms: mysql
+            splitStatements: true
+            sql: |
+              ALTER TABLE `${environment-schema}`.`bricklink_marketplace_listing`
+                DROP COLUMN `extended_description_synced_at`,
+                DROP COLUMN `extended_description_hash`;
