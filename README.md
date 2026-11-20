@@ -1,7 +1,7 @@
 # lego-database-deployer
 
-Liquibase deployer for the LCMS MySQL schemas: the environment schemas (`lego_sandbox`, `lego_dev`, and
-later `lego_prod`) and the shared `marketplace_pricing` schema. It is the authoritative history of schema
+Liquibase deployer for the LCMS MySQL schemas: the environment schemas (`lego_sandbox`, `lego_dev` and
+`lego_prod`) and the shared `marketplace_pricing` schema. It is the authoritative history of schema
 changes. `lego-data-model` (Workbench) and the `lego-data` H2 test
 schema follow it.
 
@@ -40,8 +40,8 @@ an item, crawled once for all environments.
 
 Run `LegoDatabaseDeployerApplication` (IntelliJ or `mvn spring-boot:run`) with:
 
-- **Profile:** `sandbox` (schema `lego_sandbox`) or `dev` (schema `lego_dev`) for the environment
-  changelog; `marketplace-pricing` (schema `marketplace_pricing`) or `marketplace-pricing-scratch`
+- **Profile:** `sandbox` (schema `lego_sandbox`), `dev` (schema `lego_dev`) or `prod` (schema
+  `lego_prod`, see [PROD](#prod)) for the environment changelog; `marketplace-pricing` (schema `marketplace_pricing`) or `marketplace-pricing-scratch`
   (schema `marketplace_pricing_scratch`, for trial builds) for the shared pricing changelog. The database
   connection comes from `/dev/config/database-configuration.yml` (`database-key-name`): the pricing
   profiles need the keys `rasppi5-01-marketplace-pricing` and `rasppi5-01-marketplace-pricing-scratch`,
@@ -58,11 +58,26 @@ The run is refused unless the connection's schema (`SELECT DATABASE()`) equals t
 parameter. The environment changelog refuses any `marketplace_pricing*` schema and the pricing changelog
 refuses every other schema. Every run is refused for `lego_prod_legacy`.
 
+## PROD
+
+`lego_prod` is the next-generation PROD database (HOMELAB-56). It is not `lego_prod_legacy`, which this
+deployer refuses to touch.
+
+- The `prod` profile connects with its own key, `rasppi5-01-lego-prod-deployer`: the account
+  `lcms_prod_deployer`, which has ALL on `lego_prod` and nothing anywhere else. The key exists only in the
+  owner's `/dev/config/database-configuration.yml`.
+- The PROD services use a different account (`lcms_prod_app`, key `rasppi5-01-lego-prod`) that has no DDL.
+  The deployer cannot run with it, by design.
+- The empty schema and both accounts are created first by
+  `00-workspace/ops/lego-prod/setup-lego-prod.sh` in the workspace repository; its README gives the order.
+- A PROD run changes the live PROD schema. Run `STATUS` first and read what is pending. Apply a changeset
+  to `sandbox` and `dev` before `prod`.
+
 ## Making a schema change
 
 1. Add a new changeset file here.
 2. Make the same change in `lego-data-model` (Workbench) and in the `lego-data` H2 schema and mappings.
-3. Run `STATUS`, then `UPDATE`, against `sandbox`. Then do the same for `dev` when DEV is in use.
+3. Run `STATUS`, then `UPDATE`, against `sandbox`. Then do the same for `dev`, and last for `prod`.
 
 ## Current schema notes
 

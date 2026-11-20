@@ -14,6 +14,20 @@ class TargetSchemaGuardTest {
     }
 
     @Test
+    void acceptsProdButNeverThroughAnotherEnvironmentsSettings() {
+        assertThat(TargetSchemaGuard.check("lego_prod", "lego_prod")).isEqualTo("lego_prod");
+
+        // A lower-environment profile pointed at the PROD connection, and the reverse, are refused.
+        assertThatThrownBy(() -> TargetSchemaGuard.check("lego_prod", "lego_sandbox"))
+                .hasMessageContaining("connection is schema lego_prod but environment-schema is lego_sandbox");
+        assertThatThrownBy(() -> TargetSchemaGuard.check("lego_dev", "lego_prod"))
+                .hasMessageContaining("connection is schema lego_dev but environment-schema is lego_prod");
+        // lego_prod is not the legacy database, which stays refused.
+        assertThatThrownBy(() -> TargetSchemaGuard.check("lego_prod_legacy", "lego_prod"))
+                .hasMessageContaining("never manages");
+    }
+
+    @Test
     void refusesAConnectionToAnotherSchema() {
         assertThatThrownBy(() -> TargetSchemaGuard.check("lego_sandbox", "lego_dev"))
                 .hasMessageContaining("connection is schema lego_sandbox but environment-schema is lego_dev");
