@@ -1,0 +1,25 @@
+# Builds the PROD schema lego_prod (HOMELAB-56).
+#
+# The connection is the PROD deployer account (lcms_prod_deployer), which has ALL on lego_prod and
+# nothing anywhere else. Its key lives only in the owner's /dev/config/database-configuration.yml.
+# It is deliberately not the key the PROD services use (rasppi5-01-lego-prod): that one is the
+# application account, which has no DDL and cannot run this deployer.
+spring:
+  liquibase:
+    parameters:
+      environment-schema: lego_prod
+
+target-database:
+  datasource:
+    database-key-name: rasppi5-01-lego-prod-deployer
+    hikari:
+      connection-timeout: 2345
+      idle-timeout: 3456
+      connection-test-query: SELECT 1
+      initialization-fail-timeout: 10000
+      auto-commit: false
+      login-timeout: 10000
+      minimum-idle: 5
+      maximum-pool-size: 5
+      validation-timeout: 300000
+      pool-name: rasppi5-01-lego-prod-jdbc-pool
