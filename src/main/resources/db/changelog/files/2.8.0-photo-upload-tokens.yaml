@@ -1,0 +1,47 @@
+# Personal tokens for the Lightroom Silo publisher (HOMELAB-134).
+#
+# One row per issued token. Only an HMAC-SHA256 of each token is stored, keyed with that environment's
+# secret (from Infisical); the token itself is never written to the database.
+#
+# A refresh token is retired when it is exchanged: retired_at is set and a new refresh token is issued in
+# the same family. A retired refresh token is never accepted again. Access tokens live for 3,600 s and
+# refresh tokens for 12 h, in every environment. revoked_at lets the owner revoke a token early.
+#
+# Additive only: a new table, nothing existing changes.
+databaseChangeLog:
+  - changeSet:
+      id: 2.8.0-photo-upload-tokens
+      author: tvattima
+      comment: Token table for the Lightroom Silo publisher (HOMELAB-134).
+      preConditions:
+        - onFail: MARK_RAN
+        - onFailMessage: "photo_upload_token already exists, so there is nothing to create: marked as run."
+        - not:
+            - tableExists:
+                tableName: photo_upload_token
+      changes:
+        - sql:
+            dbms: mysql
+            splitStatements: true
+            stripComments: false
+            sql: |
+              CREATE TABLE `${environment-schema}`.`photo_upload_token` (
+                `photo_upload_token_id` INT NOT NULL AUTO_INCREMENT COMMENT 'Surrogate key.',
+                `environment` VARCHAR(16) NOT NULL COMMENT 'sandbox, dev or prod: the token only works in this environment.',
+                `token_name` VARCHAR(100) NOT NULL COMMENT 'Who the token was issued to, for the audit log.',
+                `token_kind` VARCHAR(16) NOT NULL COMMENT 'ACCESS or REFRESH.',
+                `token_hmac` CHAR(64) NOT NULL COMMENT 'HMAC-SHA256 (hex) of the token, keyed with the environment secret.',
+                `family_id` CHAR(36) NOT NULL COMMENT 'Groups the refresh tokens issued from one login, for rotation.',
+                `expires_at` DATETIME(3) NOT NULL,
+                `retired_at` DATETIME(3) NULL DEFAULT NULL COMMENT 'Set when a refresh token is exchanged; never accepted again.',
+                `revoked_at` DATETIME(3) NULL DEFAULT NULL,
+                `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+                PRIMARY KEY (`photo_upload_token_id`),
+                UNIQUE INDEX `uq_photo_upload_token_hmac` (`token_hmac`),
+                INDEX `ix_photo_upload_token_family` (`family_id`),
+                INDEX `ix_photo_upload_token_name` (`environment`, `token_name`)
+              ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+      rollback:
+        - sql:
+            dbms: mysql
+            sql: DROP TABLE IF EXISTS `${environment-schema}`.`photo_upload_token`
