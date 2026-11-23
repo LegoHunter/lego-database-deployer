@@ -39,7 +39,7 @@ class BaselineChangelogTest {
                 .containsExactly("2.0.0-baseline", "2.1.0-reference-data", "2.2.0-market-snapshot-reference",
                         "2.3.0-pricing-decision-guard", "2.4.0-drop-pricing-apply-readiness",
                         "2.4.0-drop-legacy-pricing-crawl", "2.5.0-photo-keywords", "2.6.0-lot-image-sync",
-                        "2.7.0-extended-description-sync", "2.8.0-photo-upload-tokens");
+                        "2.7.0-extended-description-sync", "2.8.0-photo-upload-tokens", "2.9.0-photo-upload-batches");
     }
 
     @Test
@@ -226,6 +226,8 @@ class BaselineChangelogTest {
             assertThat(resultSet.getString(1) + ":" + resultSet.getString(2)).isEqualTo("2.7.0-extended-description-sync:EXECUTED");
             assertThat(resultSet.next()).isTrue();
             assertThat(resultSet.getString(1) + ":" + resultSet.getString(2)).isEqualTo("2.8.0-photo-upload-tokens:EXECUTED");
+            assertThat(resultSet.next()).isTrue();
+            assertThat(resultSet.getString(1) + ":" + resultSet.getString(2)).isEqualTo("2.9.0-photo-upload-batches:EXECUTED");
             assertThat(resultSet.next()).isFalse();
         }
     }
