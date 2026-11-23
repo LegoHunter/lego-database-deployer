@@ -1,0 +1,54 @@
+# Upload batches and the outcome of each file for the Lightroom Silo publisher (HOMELAB-135, upload-design section 13).
+#
+# photo_upload_batch: one row per presign, written when the URLs are issued.
+# photo_upload_batch_file: one row per presigned file. It starts 'pending' and ingest sets its outcome: accepted,
+# rejected (with the reason from ingest), or duplicate. A file still pending long after its batch is reported as failed.
+#
+# Additive only: two new tables, nothing existing changes.
+databaseChangeLog:
+  - changeSet:
+      id: 2.9.0-photo-upload-batches
+      author: tvattima
+      comment: Batch and per-file outcome tables for the Lightroom publisher's status endpoint (HOMELAB-135).
+      preConditions:
+        - onFail: MARK_RAN
+        - onFailMessage: "photo_upload_batch already exists, so there is nothing to create: marked as run."
+        - not:
+            - tableExists:
+                tableName: photo_upload_batch
+      changes:
+        - sql:
+            dbms: mysql
+            splitStatements: true
+            stripComments: false
+            sql: |
+              CREATE TABLE `${environment-schema}`.`photo_upload_batch` (
+                `batch_id` CHAR(36) NOT NULL COMMENT 'The batch id from the presign response.',
+                `environment` VARCHAR(16) NOT NULL COMMENT 'sandbox, dev or prod.',
+                `token_name` VARCHAR(100) NOT NULL COMMENT 'The publisher token that requested the batch.',
+                `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+                PRIMARY KEY (`batch_id`),
+                INDEX `ix_photo_upload_batch_created` (`environment`, `created_at`)
+              ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+              CREATE TABLE `${environment-schema}`.`photo_upload_batch_file` (
+                `photo_upload_batch_file_id` INT NOT NULL AUTO_INCREMENT,
+                `batch_id` CHAR(36) NOT NULL,
+                `file_name` VARCHAR(255) NOT NULL COMMENT 'The file name as uploaded.',
+                `state` VARCHAR(16) NOT NULL COMMENT 'pending, accepted, rejected or duplicate.',
+                `reason` VARCHAR(500) NULL DEFAULT NULL COMMENT 'Why ingest rejected the file.',
+                `item_inventory_photo_id` INT NULL DEFAULT NULL COMMENT 'Set when the file is accepted.',
+                `md5` CHAR(32) NULL DEFAULT NULL COMMENT 'MD5 of the file, set when ingest decides its outcome.',
+                `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+                `updated_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+                PRIMARY KEY (`photo_upload_batch_file_id`),
+                UNIQUE INDEX `uq_photo_upload_batch_file` (`batch_id`, `file_name`),
+                CONSTRAINT `fk_photo_upload_batch_file_batch` FOREIGN KEY (`batch_id`)
+                  REFERENCES `${environment-schema}`.`photo_upload_batch` (`batch_id`)
+              ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+      rollback:
+        - sql:
+            dbms: mysql
+            sql: DROP TABLE IF EXISTS `${environment-schema}`.`photo_upload_batch_file`
+        - sql:
+            dbms: mysql
+            sql: DROP TABLE IF EXISTS `${environment-schema}`.`photo_upload_batch`
