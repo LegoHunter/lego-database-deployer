@@ -43,9 +43,20 @@ Run `LegoDatabaseDeployerApplication` (IntelliJ or `mvn spring-boot:run`) with:
 - **Profile:** `sandbox` (schema `lego_sandbox`), `dev` (schema `lego_dev`) or `prod` (schema
   `lego_prod`, see [PROD](#prod)) for the environment changelog; `marketplace-pricing` (schema `marketplace_pricing`) or `marketplace-pricing-scratch`
   (schema `marketplace_pricing_scratch`, for trial builds) for the shared pricing changelog. The database
-  connection comes from `/dev/config/database-configuration.yml` (`database-key-name`): the pricing
-  profiles need the keys `rasppi5-01-marketplace-pricing` and `rasppi5-01-marketplace-pricing-scratch`,
-  with a JDBC URL whose default schema is that schema.
+  connection comes from `/dev/config/database-configuration.yml` (`database-key-name`). Every profile
+  connects with a deployer account, never with the account the services use (HOMELAB-126):
+
+  | Profile | Key | Account |
+  |---|---|---|
+  | `sandbox` | `rasppi5-01-lego-sandbox-deployer` | `lcms_sandbox_deployer` |
+  | `dev` | `rasppi5-01-lego-dev-deployer` | `lcms_dev_deployer` |
+  | `prod` | `rasppi5-01-lego-prod-deployer` | `lcms_prod_deployer` |
+  | `marketplace-pricing` | `rasppi5-01-marketplace-pricing` | `lcms_pricing_deployer` |
+  | `marketplace-pricing-scratch` | `rasppi5-01-marketplace-pricing-scratch` | `lcms_pricing_deployer` |
+
+  Each key's JDBC URL has that profile's schema as its default schema. Each account has ALL on its own
+  schema (the pricing one on both pricing schemas) and nothing anywhere else. The accounts are created by
+  `lego-server-configuration/mysql/accounts/setup-mysql-accounts.sh` (PROD: `setup-lego-prod.sh`).
 - **`deployer.changelog`:** `ENVIRONMENT` (default) or `MARKETPLACE_PRICING`. The pricing profiles set it.
 - **`deployer.mode`:**
   - `UPDATE` (default): apply pending changesets.
