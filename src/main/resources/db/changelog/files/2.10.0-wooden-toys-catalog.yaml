@@ -5,7 +5,7 @@
 #
 # lego_wooden_toy_catalog_item: one row per catalog entry, with the fields LEGO publishes for a wooden toy.
 # lego_wooden_toy_catalog_item_image: the entry's pictures, many per entry, bytes included. A picture is LEGO's
-# (LEGO_COM) or one the owner added from another source (OWNER).
+# (LEGO_COM) or one added by hand from another source (CUSTOM).
 #
 # The second changeset records that the LEGO service provides a catalog. It has its own CSV: the 2.1.0 CSVs are
 # never edited once they have run.
@@ -33,7 +33,7 @@ databaseChangeLog:
             sql: |
               CREATE TABLE `${environment-schema}`.`lego_wooden_toy_catalog_item` (
                 `external_catalog_item_id` INT NOT NULL COMMENT 'The catalog entry these fields belong to. One row per entry.',
-                `entry_source` VARCHAR(30) NOT NULL DEFAULT 'LEGO_COM' COMMENT 'LEGO_COM for an entry captured from lego.com, OWNER for one the owner added. A capture never changes an OWNER entry.',
+                `entry_source` VARCHAR(30) NOT NULL DEFAULT 'LEGO_COM' COMMENT 'LEGO_COM for an entry captured from lego.com, CUSTOM for one added by hand. A capture never changes a CUSTOM entry.',
                 `product_number` VARCHAR(30) NOT NULL COMMENT 'Product Number as LEGO writes it, such as 330, 112/b or A/76. Not unique: LEGO reused numbers.',
                 `product_number_sortable` VARCHAR(30) NULL DEFAULT NULL COMMENT 'Product Number padded so that it sorts in number order.',
                 `alternate_number_text` VARCHAR(500) NULL DEFAULT NULL COMMENT 'Alternate Number as written: a note on renumbering, not a number.',
@@ -59,7 +59,7 @@ databaseChangeLog:
                 `lego_wooden_toy_catalog_item_image_id` BIGINT NOT NULL AUTO_INCREMENT,
                 `external_catalog_item_id` INT NOT NULL COMMENT 'The catalog entry the picture belongs to.',
                 `sort_order` INT NOT NULL DEFAULT 0 COMMENT 'Order within the entry. For pictures from lego.com, the order LEGO lists them in.',
-                `image_source` VARCHAR(30) NOT NULL DEFAULT 'LEGO_COM' COMMENT 'LEGO_COM for a picture captured from lego.com, OWNER for one the owner added. A capture never changes an OWNER picture.',
+                `image_source` VARCHAR(30) NOT NULL DEFAULT 'LEGO_COM' COMMENT 'LEGO_COM for a picture captured from lego.com, CUSTOM for one added by hand. A capture never changes a CUSTOM picture.',
                 `image` LONGBLOB NOT NULL COMMENT 'The picture, byte for byte as it was fetched. LONGBLOB because some of LEGO''s pictures are over 16 MB.',
                 `content_type` VARCHAR(100) NOT NULL COMMENT 'Media type, such as image/jpeg or image/png.',
                 `file_name` VARCHAR(255) NULL DEFAULT NULL COMMENT 'File name at the source.',
@@ -67,9 +67,9 @@ databaseChangeLog:
                 `height` INT NULL DEFAULT NULL COMMENT 'Height in pixels.',
                 `byte_size` BIGINT NOT NULL COMMENT 'Size of the picture in bytes.',
                 `sha256` CHAR(64) NOT NULL COMMENT 'SHA-256 of the picture bytes, lower-case hex.',
-                `source_asset_id` VARCHAR(50) NULL DEFAULT NULL COMMENT 'The picture''s id on lego.com. NULL for a picture the owner added.',
+                `source_asset_id` VARCHAR(50) NULL DEFAULT NULL COMMENT 'The picture''s id on lego.com. NULL for a custom picture.',
                 `source_url` VARCHAR(500) NULL DEFAULT NULL COMMENT 'Where the picture came from.',
-                `source_note` VARCHAR(500) NULL DEFAULT NULL COMMENT 'For a picture the owner added: who made or posted it, and where.',
+                `source_note` VARCHAR(500) NULL DEFAULT NULL COMMENT 'For a custom picture: who made or posted it, and where.',
                 `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
                 PRIMARY KEY (`lego_wooden_toy_catalog_item_image_id`),
                 UNIQUE INDEX `uq_lego_wooden_toy_catalog_item_image_sha256` (`external_catalog_item_id`, `sha256`),
