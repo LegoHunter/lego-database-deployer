@@ -12,14 +12,23 @@ schema follow it.
   matched the databases (HOMELAB-46).
   - It has no DROP statements.
   - It halts on any schema that already has `item_inventory`.
-- Every later change is a **new file** in `db/changelog/files/`, picked up by `includeAll` in file-name
-  order. Name it `<version>-<slug>.yaml`, qualify objects with `${environment-schema}`, and give it
-  preconditions and a rollback.
+- Every later change is a **new file** in `db/changelog/files/`, picked up by `includeAll`. Name it
+  `<version>-<slug>.yaml`, qualify objects with `${environment-schema}`, and give it preconditions and a
+  rollback.
+- Files apply in **version order**: `2.10.0` follows `2.9.0`. Liquibase's own order is alphabetical, which
+  would put `2.10.0` between `2.1.0` and `2.2.0`, so both master changelogs name `ChangelogFileOrder` as
+  their `resourceComparator` (HOMELAB-161).
 - **Never edit a changeset that has already run anywhere.** Liquibase stores each changeset's checksum and
   refuses a changed file. Write a new changeset instead.
 - `2.1.0-reference-data` loads the lookup tables every environment needs.
 - `2.3.0-pricing-decision-guard` adds the Reprice guard outcome to `pricing_decision`
   (`guard_status_code`, `guard_reason_code`, both nullable; HOMELAB-65).
+- `2.10.0-wooden-toys-catalog` adds LEGO's wooden toys catalog as a second catalog source (HOMELAB-161):
+  - `lego_wooden_toy_catalog_item`: the fields LEGO publishes for a wooden toy, one row per
+    `external_catalog_item` of the `LEGO` service with item type `W`;
+  - `lego_wooden_toy_catalog_item_image`: an entry's pictures, bytes included (`LONGBLOB`, since some are
+    over 16 MB);
+  - a second changeset, `2.10.0-lego-catalog-capability`, gives the `LEGO` service the `CATALOG` capability.
 
 ## The shared pricing changelog
 

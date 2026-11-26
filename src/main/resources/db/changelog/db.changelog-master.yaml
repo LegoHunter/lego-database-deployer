@@ -1,3 +1,5 @@
 databaseChangeLog:
   - includeAll:
       path: db/changelog/files
+      # Files apply in version order, so 2.10.0 follows 2.9.0 (plain text order would not).
+      resourceComparator: net.lego.database.deployer.config.ChangelogFileOrder

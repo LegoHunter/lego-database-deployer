@@ -30,7 +30,8 @@ class ReferenceDataChangelogTest {
     static {
         EXPECTED_ROWS.put("external_service_type", 5);
         EXPECTED_ROWS.put("external_service", 10);
-        EXPECTED_ROWS.put("external_service_capability", 8);
+        // 8 from 2.1.0-reference-data, plus (1, CATALOG) from 2.10.0-lego-catalog-capability (HOMELAB-161).
+        EXPECTED_ROWS.put("external_service_capability", 9);
         EXPECTED_ROWS.put("condition", 11);
         EXPECTED_ROWS.put("cost_type", 6);
         EXPECTED_ROWS.put("transaction_type", 10);
@@ -82,6 +83,8 @@ class ReferenceDataChangelogTest {
         assertThat(value("SELECT condition_text FROM condition WHERE condition_id = 1")).isNull();
         assertThat(value("SELECT conversion_factor FROM transaction_type WHERE transaction_type_code = 'S'")).isEqualTo("-1");
         assertThat(value("SELECT ID FROM DATABASECHANGELOG WHERE ID = '2.1.0-reference-data'")).isEqualTo("2.1.0-reference-data");
+        assertThat(value("SELECT COUNT(*) FROM external_service_capability WHERE external_service_id = 1 AND capability_code = 'CATALOG'"))
+                .as("the LEGO service provides a catalog (HOMELAB-161)").isEqualTo("1");
 
         update();
         assertRowCounts();
