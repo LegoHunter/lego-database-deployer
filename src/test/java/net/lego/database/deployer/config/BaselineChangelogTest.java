@@ -39,7 +39,30 @@ class BaselineChangelogTest {
                 .containsExactly("2.0.0-baseline", "2.1.0-reference-data", "2.2.0-market-snapshot-reference",
                         "2.3.0-pricing-decision-guard", "2.4.0-drop-pricing-apply-readiness",
                         "2.4.0-drop-legacy-pricing-crawl", "2.5.0-photo-keywords", "2.6.0-lot-image-sync",
-                        "2.7.0-extended-description-sync", "2.8.0-photo-upload-tokens", "2.9.0-photo-upload-batches");
+                        "2.7.0-extended-description-sync", "2.8.0-photo-upload-tokens", "2.9.0-photo-upload-batches",
+                        "2.10.0-wooden-toys-catalog", "2.10.0-lego-catalog-capability");
+    }
+
+    @Test
+    void theWoodenToysCatalogTablesAreNewAndHangOffTheCatalogEntry() throws Exception {
+        // HOMELAB-161: two new tables, nothing existing changes. The picture column must hold LEGO's largest
+        // pictures (43 MB), which MEDIUMBLOB (16 MB) cannot.
+        ChangeSet catalog = changeSets().get(11);
+        String sql = ((RawSQLChange) catalog.getChanges().get(0)).getSql();
+
+        assertThat(catalog.getId()).isEqualTo("2.10.0-wooden-toys-catalog");
+        assertThat(sql).doesNotContain("lego_dev", "lego_sandbox", "lego_prod", "DROP ", "ALTER ");
+        assertThat(dropped(sql, "CREATE\\s+TABLE\\s+`lego_test`\\.`([a-z_]+)`"))
+                .containsExactly("lego_wooden_toy_catalog_item", "lego_wooden_toy_catalog_item_image");
+        assertThat(sql).contains("REFERENCES `lego_test`.`external_catalog_item` (`external_catalog_item_id`)",
+                "REFERENCES `lego_test`.`lego_wooden_toy_catalog_item` (`external_catalog_item_id`)",
+                "`image` LONGBLOB NOT NULL",
+                "UNIQUE INDEX `uq_lego_wooden_toy_catalog_item_image_sha256` (`external_catalog_item_id`, `sha256`)");
+        assertThat(sql).doesNotContain("MEDIUMBLOB NOT NULL");
+        for (String statement : StringUtil.processMultiLineSQL(sql, false, true, null)) {
+            assertThat(parenthesisDepth(statement)).as(firstLine(statement)).isZero();
+        }
+        assertThat(catalog.getRollback().getChanges()).hasSize(2);
     }
 
     @Test
@@ -228,6 +251,10 @@ class BaselineChangelogTest {
             assertThat(resultSet.getString(1) + ":" + resultSet.getString(2)).isEqualTo("2.8.0-photo-upload-tokens:EXECUTED");
             assertThat(resultSet.next()).isTrue();
             assertThat(resultSet.getString(1) + ":" + resultSet.getString(2)).isEqualTo("2.9.0-photo-upload-batches:EXECUTED");
+            assertThat(resultSet.next()).isTrue();
+            assertThat(resultSet.getString(1) + ":" + resultSet.getString(2)).isEqualTo("2.10.0-wooden-toys-catalog:EXECUTED");
+            assertThat(resultSet.next()).isTrue();
+            assertThat(resultSet.getString(1) + ":" + resultSet.getString(2)).isEqualTo("2.10.0-lego-catalog-capability:EXECUTED");
             assertThat(resultSet.next()).isFalse();
         }
     }

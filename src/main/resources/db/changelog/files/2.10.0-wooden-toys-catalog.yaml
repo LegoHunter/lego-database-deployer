@@ -1,0 +1,101 @@
+# LEGO's wooden toys catalog as a second catalog source (HOMELAB-161, Epic HOMELAB-157).
+#
+# The catalog entries themselves are rows of external_catalog_item, under the existing LEGO service (id 1), with
+# item_type_code 'W', keyed by the entry's lego.com address slug. Two tables hold what that table has no column for:
+#
+# lego_wooden_toy_catalog_item: one row per catalog entry, with the fields LEGO publishes for a wooden toy.
+# lego_wooden_toy_catalog_item_image: the entry's pictures, many per entry, bytes included. A picture is LEGO's
+# (LEGO_COM) or one the owner added from another source (OWNER).
+#
+# The second changeset records that the LEGO service provides a catalog. It has its own CSV: the 2.1.0 CSVs are
+# never edited once they have run.
+#
+# Additive only: two new tables and one new lookup row, nothing existing changes.
+#
+# File order: this file sorts after 2.9.0 because the master changelog orders files by version number
+# (ChangelogFileOrder). Plain alphabetical order would put 2.10.0 between 2.1.0 and 2.2.0.
+databaseChangeLog:
+  - changeSet:
+      id: 2.10.0-wooden-toys-catalog
+      author: tvattima
+      comment: Detail and picture tables for LEGO wooden toys catalog entries (HOMELAB-161).
+      preConditions:
+        - onFail: MARK_RAN
+        - onFailMessage: "lego_wooden_toy_catalog_item already exists, so there is nothing to create: marked as run."
+        - not:
+            - tableExists:
+                tableName: lego_wooden_toy_catalog_item
+      changes:
+        - sql:
+            dbms: mysql
+            splitStatements: true
+            stripComments: false
+            sql: |
+              CREATE TABLE `${environment-schema}`.`lego_wooden_toy_catalog_item` (
+                `external_catalog_item_id` INT NOT NULL COMMENT 'The catalog entry these fields belong to. One row per entry.',
+                `entry_source` VARCHAR(30) NOT NULL DEFAULT 'LEGO_COM' COMMENT 'LEGO_COM for an entry captured from lego.com, OWNER for one the owner added. A capture never changes an OWNER entry.',
+                `product_number` VARCHAR(30) NOT NULL COMMENT 'Product Number as LEGO writes it, such as 330, 112/b or A/76. Not unique: LEGO reused numbers.',
+                `product_number_sortable` VARCHAR(30) NULL DEFAULT NULL COMMENT 'Product Number padded so that it sorts in number order.',
+                `alternate_number_text` VARCHAR(500) NULL DEFAULT NULL COMMENT 'Alternate Number as written: a note on renumbering, not a number.',
+                `original_title` VARCHAR(250) NULL DEFAULT NULL COMMENT 'Title in Danish.',
+                `english_title` VARCHAR(250) NULL DEFAULT NULL COMMENT 'Title in English.',
+                `launch_year_text` VARCHAR(50) NULL DEFAULT NULL COMMENT 'Launch Year as written. Text: it can hold two years or a decade.',
+                `exit_year_text` VARCHAR(50) NULL DEFAULT NULL COMMENT 'Exit Year as written. Text: it can hold two years or N/A.',
+                `average_size_text` VARCHAR(100) NULL DEFAULT NULL COMMENT 'Average Size as written.',
+                `series_text` VARCHAR(100) NULL DEFAULT NULL COMMENT 'Series information as written.',
+                `notes_original` TEXT NULL DEFAULT NULL COMMENT 'Notes in Danish.',
+                `notes_english` TEXT NULL DEFAULT NULL COMMENT 'Notes in English.',
+                `source_version` INT NULL DEFAULT NULL COMMENT 'Version of the entry on lego.com when it was last captured.',
+                `source_updated_at` DATETIME(3) NULL DEFAULT NULL COMMENT 'When lego.com last changed the entry.',
+                `captured_at` DATETIME(3) NULL DEFAULT NULL COMMENT 'When the capture that last wrote this entry was taken.',
+                `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+                `updated_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+                PRIMARY KEY (`external_catalog_item_id`),
+                INDEX `ix_lego_wooden_toy_catalog_item_product_number` (`product_number`),
+                CONSTRAINT `fk_lego_wooden_toy_catalog_item_catalog_item` FOREIGN KEY (`external_catalog_item_id`)
+                  REFERENCES `${environment-schema}`.`external_catalog_item` (`external_catalog_item_id`)
+              ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Fields LEGO publishes for a wooden toy, one row per catalog entry of the LEGO service with item type W.';
+              CREATE TABLE `${environment-schema}`.`lego_wooden_toy_catalog_item_image` (
+                `lego_wooden_toy_catalog_item_image_id` BIGINT NOT NULL AUTO_INCREMENT,
+                `external_catalog_item_id` INT NOT NULL COMMENT 'The catalog entry the picture belongs to.',
+                `sort_order` INT NOT NULL DEFAULT 0 COMMENT 'Order within the entry. For pictures from lego.com, the order LEGO lists them in.',
+                `image_source` VARCHAR(30) NOT NULL DEFAULT 'LEGO_COM' COMMENT 'LEGO_COM for a picture captured from lego.com, OWNER for one the owner added. A capture never changes an OWNER picture.',
+                `image` LONGBLOB NOT NULL COMMENT 'The picture, byte for byte as it was fetched. LONGBLOB because some of LEGO''s pictures are over 16 MB.',
+                `content_type` VARCHAR(100) NOT NULL COMMENT 'Media type, such as image/jpeg or image/png.',
+                `file_name` VARCHAR(255) NULL DEFAULT NULL COMMENT 'File name at the source.',
+                `width` INT NULL DEFAULT NULL COMMENT 'Width in pixels.',
+                `height` INT NULL DEFAULT NULL COMMENT 'Height in pixels.',
+                `byte_size` BIGINT NOT NULL COMMENT 'Size of the picture in bytes.',
+                `sha256` CHAR(64) NOT NULL COMMENT 'SHA-256 of the picture bytes, lower-case hex.',
+                `source_asset_id` VARCHAR(50) NULL DEFAULT NULL COMMENT 'The picture''s id on lego.com. NULL for a picture the owner added.',
+                `source_url` VARCHAR(500) NULL DEFAULT NULL COMMENT 'Where the picture came from.',
+                `source_note` VARCHAR(500) NULL DEFAULT NULL COMMENT 'For a picture the owner added: who made or posted it, and where.',
+                `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+                PRIMARY KEY (`lego_wooden_toy_catalog_item_image_id`),
+                UNIQUE INDEX `uq_lego_wooden_toy_catalog_item_image_sha256` (`external_catalog_item_id`, `sha256`),
+                CONSTRAINT `fk_lego_wooden_toy_catalog_item_image_item` FOREIGN KEY (`external_catalog_item_id`)
+                  REFERENCES `${environment-schema}`.`lego_wooden_toy_catalog_item` (`external_catalog_item_id`)
+              ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Pictures of a wooden toys catalog entry, bytes included. Never published.'
+      rollback:
+        - sql:
+            dbms: mysql
+            sql: DROP TABLE IF EXISTS `${environment-schema}`.`lego_wooden_toy_catalog_item_image`
+        - sql:
+            dbms: mysql
+            sql: DROP TABLE IF EXISTS `${environment-schema}`.`lego_wooden_toy_catalog_item`
+  - changeSet:
+      id: 2.10.0-lego-catalog-capability
+      author: tvattima
+      comment: The LEGO service (id 1) provides a catalog (HOMELAB-161).
+      changes:
+        - loadUpdateData:
+            tableName: external_service_capability
+            primaryKey: external_service_id,capability_code
+            file: ../data/2.10.0-reference-data/external_service_capability.csv
+            relativeToChangelogFile: true
+            separator: ','
+            encoding: UTF-8
+      rollback:
+        - delete:
+            tableName: external_service_capability
+            where: external_service_id = 1 AND capability_code = 'CATALOG'
